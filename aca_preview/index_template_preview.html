@@ -1,0 +1,73 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+  <head>
+    <title>Proseco guide star selection summary</title>
+  <style>
+h1,h2,h3,h4 {
+  color: #990000;
+}
+
+table.table-striped {
+        border-width: thin thin thin thin;
+        border-spacing: 1px;
+        border-style: outset outset outset outset;
+        border-color: gray gray gray gray;
+        border-collapse: separate;
+        background-color: white;
+}
+
+table.table-striped th {
+        border-width: 1px 1px 1px 1px;
+        padding: 1px 3px 1px 3px;
+        border-color: gray;
+        border-style: inset;
+}
+table.table-striped td {
+        border-width: 1px 1px 1px 1px;
+        padding: 1px 3px 1px 3px;
+        border-style: inset;
+        border-color: gray;
+        text-align: right;
+}
+span.critical {
+  color:#ff0000;
+  font-weight:bold;
+}
+span.warning {
+  color:#ff6400;
+}
+span.caution {
+  color:#009900;
+}
+span.info {
+  color:#000099;
+}
+
+</style>
+  </head>
+
+  <body>
+
+<h1> {{load_name}} Pre-review</h1>
+
+<pre>
+Proseco version: {{version}}
+
+{{summary_text | safe}}
+</pre>
+
+{% for aca in acas %}
+
+<a name="obsid{{aca.obsid}}"></a>
+<h2> Obsid {{aca.obsid}} at {{aca.date}}</h1>
+<table>
+  <tr>
+    <td><pre>{{aca.context['text_pre']}}</pre></td>
+    <td><img src="{{aca.context['catalog_plot'] | safe}}"></td>
+  </tr>
+</table>
+
+{% endfor %}
+
+  </body>
+</html>
