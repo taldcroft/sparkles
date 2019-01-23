@@ -9,6 +9,7 @@ import numpy as np
 from Quaternion import Quat
 from jinja2 import Template
 from chandra_aca.transform import yagzag_to_pixels
+from chandra_aca.star_probs import guide_count
 from astropy.table import Column
 
 import proseco
@@ -152,7 +153,7 @@ class ACAReviewTable(ACATable):
         self._base_repr_()
         catalog = '\n'.join(self.pformat(max_width=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
-        self.guide_count = self.guides.guide_count(self.guides['mag'], self.guides.t_ccd)
+        self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd)
 
         message_text = self.get_formatted_messages()
 
