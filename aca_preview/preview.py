@@ -216,6 +216,7 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
 
         self.check_guide_geometry()
         self.check_acq_p2()
+        self.check_bright_guide_for_ers()
 
     def check_guide_geometry(self):
         """Check for guide stars too tightly clustered
@@ -328,3 +329,10 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
             self.add_message('critical', f'P2: {P2:.2f} less than {P2_lim} for {obs_type}')
         elif P2 < P2_lim + 1:
             self.add_message('warning', f'P2: {P2:.2f} less than {P2_lim + 1} for {obs_type}')
+
+    def check_bright_guide_for_ers(self, n_bright_req=3, bright_lim=9.0):
+        obsid = float(self.obsid)
+        is_OR = abs(obsid) < 38000
+        n_bright = np.count_nonzero(self.guides['mag'] < bright_lim)
+        if not is_OR and n_bright < n_bright_req:
+            self.add_message('critical', f'ER bright stars: only {n_bright} stars brighter than {bright_lim}')
