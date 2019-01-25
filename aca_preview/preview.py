@@ -376,7 +376,8 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         #     push @orange_warn, sprintf "alarm [%2d] Acq Off (padded) CCD by > 60 arcsec.\n",i
         # }
         # elsif ((entry_type =~ /BOT|ACQ/) and (acq_edge_delta < 0)){
-        #     push @{self->{fyi}}, sprintf "alarm [%2d] Acq Off (padded) CCD (P_ACQ should be < .5)\n",i
+        #     push @{self->{fyi}},
+        #                 sprintf "alarm [%2d] Acq Off (padded) CCD (P_ACQ should be < .5)\n",i
         # }
 
     def add_message(self, category, text, **kwargs):
@@ -400,4 +401,5 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         is_OR = abs(obsid) < 38000
         n_bright = np.count_nonzero(self.guides['mag'] < bright_lim)
         if not is_OR and n_bright < n_bright_req:
-            self.add_message('critical', f'ER bright stars: only {n_bright} stars brighter than {bright_lim}')
+            self.add_message(
+                'critical', f'ER bright stars: only {n_bright} stars brighter than {bright_lim}')
