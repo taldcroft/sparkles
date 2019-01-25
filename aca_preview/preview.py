@@ -1,3 +1,9 @@
+# coding: utf-8
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+
+"""
+Preliminary review of ACA catalogs selected by proseco.
+"""
 from pathlib import Path
 import pickle
 from itertools import combinations
@@ -58,7 +64,7 @@ def preview_load(load_name, outdir=None):
     acas = []
     for obsid, aca in acas_dict.items():
         # Change instance class to include all the review methods. This is legal!
-        ACAReviewTable.prepare_for_review(aca)
+        ACAReviewTable.add_review_methods(aca)
         aca.obsid = obsid
         aca.outdir = outdir
         aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
@@ -132,8 +138,8 @@ def get_summary_text(acas):
 
 class ACAReviewTable(ACATable):
     @classmethod
-    def prepare_for_review(cls, aca):
-        """Prepare ``aca`` object *in-place* for review methods.
+    def add_review_methods(cls, aca):
+        """Add review methods to ``aca`` object *in-place*.
 
         - Change ``aca.__class__`` to ``cls``
         - Add ``context`` and ``messages`` properties.
