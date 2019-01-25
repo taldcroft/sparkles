@@ -14,7 +14,6 @@ from astropy.table import Column
 
 import proseco
 from proseco.catalog import ACATable
-from proseco.core import StarsTable
 import proseco.characteristics as CHAR
 import proseco.characteristics_guide as GUIDE
 
@@ -59,12 +58,10 @@ def preview_load(load_name, outdir=None):
     acas = []
     for obsid, aca in acas_dict.items():
         # Change instance class to include all the review methods. This is legal!
-        aca.__class__ = ACAReviewTable
+        ACAReviewTable.prepare_for_review(aca)
         aca.obsid = obsid
         aca.outdir = outdir
-        aca.context = {}
-        aca.messages = []
-        aca.set_stars_and_mask()
+        aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
         aca.preview()
         acas.append(aca)
 
@@ -134,6 +131,20 @@ def get_summary_text(acas):
 
 
 class ACAReviewTable(ACATable):
+    @classmethod
+    def prepare_for_review(cls, aca):
+        """Prepare ``aca`` object *in-place* for review methods.
+
+        - Change ``aca.__class__`` to ``cls``
+        - Add ``context`` and ``messages`` properties.
+
+        :param aca: ACATable object, modified in place.
+
+        """
+        aca.__class__ = cls
+        aca.context = {}  # Jinja2 context for output HTML review
+        aca.messages = []  # Warning messages
+
     def set_stars_and_mask(self):
         """Set stars attribute for plotting.
 
