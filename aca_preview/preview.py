@@ -24,7 +24,7 @@ FILEDIR = Path(__file__).parent
 CATEGORIES = ('critical', 'warning', 'caution', 'info')
 
 
-# Fix characterstics compatibility issues between 4.3.x and 4.4+
+# Fix characteristics compatibility issues between 4.3.x and 4.4+
 if not hasattr(CHAR, 'CCD'):
     for attr in ('CCD', 'PIX_2_ARC', 'ARC_2_PIX'):
         setattr(CHAR, attr, getattr(GUIDE, attr))
