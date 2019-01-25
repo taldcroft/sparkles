@@ -35,7 +35,26 @@ if not hasattr(CHAR, 'CCD'):
         setattr(CHAR, attr, getattr(GUIDE, attr))
 
 
-def preview_load(load_name, outdir=None):
+def main(sys_args=None):
+    """Command line interface to preview_load()"""
+
+    import argparse
+    parser = argparse.ArgumentParser(description='ACA preliminary review tool')
+    parser.add_argument('load_name',
+                        type=str,
+                        help='Load name (e.g. JAN2119A)')
+    parser.add_argument('--outdir',
+                        type=str,
+                        help='Output directory (default=<load name>')
+    parser.add_argument('--quiet',
+                        action='store_true',
+                        help='Run quietly')
+    args = parser.parse_args(sys_args)
+
+    preview_load(args.load_name, outdir=args.outdir, loud=(not args.quiet))
+
+
+def preview_load(load_name, outdir=None, loud=False):
     """Do preliminary load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file.  The following options are tried
@@ -47,11 +66,12 @@ def preview_load(load_name, outdir=None):
 
     :param load_name: Name of loads
     :param outdir: Output directory
+    :param loud: Print status information during checking
     """
     if load_name in CACHE:
         acas_dict = CACHE[load_name]
     else:
-        acas_dict = get_acas(load_name)
+        acas_dict = get_acas(load_name, loud)
         CACHE[load_name] = acas_dict
 
     # Make output directory if needed
@@ -63,6 +83,8 @@ def preview_load(load_name, outdir=None):
     # Do the pre-review for each catalog
     acas = []
     for obsid, aca in acas_dict.items():
+        if loud:
+            print(f'Processing obsid {obsid}')
         # Change instance class to include all the review methods. This is legal!
         ACAReviewTable.add_review_methods(aca)
         aca.obsid = obsid
@@ -83,6 +105,8 @@ def preview_load(load_name, outdir=None):
     out_html = template.render(context)
 
     out_filename = outdir / 'index.html'
+    if loud:
+        print(f'Writing output review file {out_filename}')
     with open(out_filename, 'w') as fh:
         fh.write(out_html)
 
@@ -98,10 +122,12 @@ def stylize(text, category):
     return out
 
 
-def get_acas(load_name):
+def get_acas(load_name, loud=False):
     filenames = [f'{load_name}_proseco.pkl', f'{load_name}.pkl']
     for filename in filenames:
         if Path(filename).exists():
+            if loud:
+                print(f'Reading pickle file {filename}')
             acas = pickle.load(open(filename, 'rb'))
             return acas
     raise FileNotFoundError(f'no matching pickle file {filenames}')
