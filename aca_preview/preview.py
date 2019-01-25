@@ -16,11 +16,18 @@ import proseco
 from proseco.catalog import ACATable
 from proseco.core import StarsTable
 import proseco.characteristics as CHAR
+import proseco.characteristics_guide as GUIDE
 
 CACHE = {}
 VERSION = proseco.test(get_version=True)
 FILEDIR = Path(__file__).parent
 CATEGORIES = ('critical', 'warning', 'caution', 'info')
+
+
+# Fix characteristics compatibility issues between 4.3.x and 4.4+
+if not hasattr(CHAR, 'CCD'):
+    for attr in ('CCD', 'PIX_2_ARC', 'ARC_2_PIX'):
+        setattr(CHAR, attr, getattr(GUIDE, attr))
 
 
 def preview_load(load_name, outdir=None):
@@ -57,6 +64,7 @@ def preview_load(load_name, outdir=None):
         aca.outdir = outdir
         aca.context = {}
         aca.messages = []
+        aca.set_stars_and_mask()
         aca.preview()
         acas.append(aca)
 
@@ -126,6 +134,24 @@ def get_summary_text(acas):
 
 
 class ACAReviewTable(ACATable):
+    def set_stars_and_mask(self):
+        """Set stars attribute for plotting.
+
+        This includes compatibility code to deal with somewhat-broken behavior
+        in 4.3.x where the base plot method is hard-coded to look at
+        ``acqs.stars`` and ``acqs.bad_stars``.
+
+        """
+        # Get stars from AGASC and set ``stars`` attribute
+        self.set_stars()
+
+        # Compatibility for 4.3.x before #221 (Make plot() method behave
+        # consistently and correctly)
+        if not hasattr(self, 'bad_stars_mask'):
+            acqs = self.acqs
+            acqs.stars = self.stars
+            _, acqs.bad_stars = acqs.get_acq_candidates(acqs.stars)
+
     def make_starcat_plot(self):
         plotname = f'cat{self.obsid}.png'
         outfile = self.outdir / plotname
@@ -134,12 +160,8 @@ class ACAReviewTable(ACATable):
         if outfile.exists():
             return
 
-        stars = StarsTable.from_agasc(self.att, date=self.date)
-        self.stars = stars
-
         fig = plt.figure(figsize=(4.5, 4))
         ax = fig.add_subplot(1, 1, 1)
-        self.acqs.stars
         self.plot(ax=ax)
         plt.tight_layout()
         fig.savefig(str(outfile))
@@ -150,7 +172,7 @@ class ACAReviewTable(ACATable):
 
         P2 = -np.log10(self.acqs.calc_p_safe())
         att = Quat(self.att)
-        self._base_repr_()
+        self._base_repr_()  # Hack to set default ``format`` for cols as needed
         catalog = '\n'.join(self.pformat(max_width=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
         self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd)
