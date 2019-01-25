@@ -7,7 +7,7 @@ try:
 except ImportError:
     cmdclass = {}
 
-entry_points = {'console_scripts': ['aca_prelim_review=aca_preview.preview:main']}
+entry_points = {'console_scripts': ['aca_preview=aca_preview.preview:main']}
 
 setup(name='aca_preview',
       author='Tom Aldcroft',
