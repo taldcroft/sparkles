@@ -4,6 +4,7 @@
 """
 Preliminary review of ACA catalogs selected by proseco.
 """
+import re
 from pathlib import Path
 import pickle
 from itertools import combinations
@@ -42,7 +43,7 @@ def main(sys_args=None):
     parser = argparse.ArgumentParser(description='ACA preliminary review tool')
     parser.add_argument('load_name',
                         type=str,
-                        help='Load name (e.g. JAN2119A)')
+                        help='Load name (e.g. JAN2119A) or full file name')
     parser.add_argument('--outdir',
                         type=str,
                         help='Output directory (default=<load name>')
@@ -59,6 +60,7 @@ def preview_load(load_name, outdir=None, loud=False):
 
     The ``load_name`` specifies the pickle file.  The following options are tried
     in this order:
+    - <load_name> (e.g. 'JAN2119A_proseco.pkl')
     - <load_name>_proseco.pkl (for <load_name> like 'JAN2119A', ORviewer default)
     - <load_name>.pkl
 
@@ -76,7 +78,7 @@ def preview_load(load_name, outdir=None, loud=False):
 
     # Make output directory if needed
     if outdir is None:
-        outdir = load_name
+        outdir = re.sub(r'(_proseco)?.pkl', '', load_name)
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -123,9 +125,10 @@ def stylize(text, category):
 
 
 def get_acas(load_name, loud=False):
-    filenames = [f'{load_name}_proseco.pkl', f'{load_name}.pkl']
+    filenames = [load_name, f'{load_name}_proseco.pkl', f'{load_name}.pkl']
     for filename in filenames:
-        if Path(filename).exists():
+        pth = Path(filename)
+        if pth.exists() and pth.is_file() and pth.suffix == '.pkl':
             if loud:
                 print(f'Reading pickle file {filename}')
             acas = pickle.load(open(filename, 'rb'))
