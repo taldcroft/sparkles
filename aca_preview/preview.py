@@ -412,8 +412,8 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
                 'critical', f'ER bright stars: only {n_bright} stars brighter than {bright_lim}')
 
     def check_enough_guide_for_ers(self, n_required=8):
-        """
-        Warn on ERs with fewer than n_required (8) guide stars.
+        """Warn on ERs with fewer than n_required (8) guide stars.
+
         """
         obsid = float(self.obsid)
         is_OR = abs(obsid) < 38000
@@ -421,8 +421,8 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
             self.add_message('critical', f'ER guides stars: only {len(self.guides)} stars')
 
     def check_guide_pos_errs(self):
-        """
-        Warn on stars with larger POS_ERR (warning at 1" critical at 2")
+        """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
+
         """
         for star in self.guides:
             agasc_id = star['id']
@@ -437,10 +437,9 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
                     break
 
     def check_imposters(self):
-        """
-        Warn on stars with larger imposter centroid offsets
-        """
+        """Warn on stars with larger imposter centroid offsets
 
+        """
         # Borrow the imposter offset method from starcheck
         def imposter_offset(cand_mag, imposter_mag):
                 """
@@ -465,11 +464,13 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
                     break
 
     def check_too_bright_guide(self):
-        """
-        Warn on guide stars that may be too bright.
-        Set to warn with critical warn if MAG_ACA_ERR used in selection is less than 0.1 or if
-        within 3 * mag_err of the hard 5.8 limit. Set to warn with orange warn if just brighter
-        than 6.1 (should be double-checked in context of other candidates).
+        """Warn on guide stars that may be too bright.
+
+        Set to warn with critical warn if MAG_ACA_ERR used in selection is less
+        than 0.1 or if within 3 * mag_err of the hard 5.8 limit. Set to warn
+        with orange warn if just brighter than 6.1 (should be double-checked in
+        context of other candidates).
+
         """
         for star in self.guides:
             agasc_id = star['id']
@@ -477,7 +478,7 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
                 self.add_message(
                     'critical',
                     f'Guide star {agasc_id} within 3*mag_err of 5.8')
-            elif (star['mag'] < 6.1) and (star['MAG_ACA_ERR'] * .01 < 0.1):
+            elif (star['mag'] < 6.1) and (star['MAG_ACA_ERR'] * 0.01 < 0.1):
                 self.add_message(
                     'critical',
                     f'Guide star {agasc_id} < 6.1 with small MAG_ACA_ERR.  Double check selection.')
