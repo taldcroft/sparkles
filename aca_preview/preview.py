@@ -106,6 +106,9 @@ def preview_load(load_name, outdir=None, report_level='none', loud=False):
         # Change instance class to include all the review methods. This is legal!
         ACAReviewTable.add_review_methods(aca)
         aca.obsid = obsid
+        aca.acqs.obsid = float(obsid)
+        aca.guides.obsid = float(obsid)
+        aca.fids.obsid = float(obsid)
         aca.outdir = outdir
         aca.report_level = report_level
         aca.loud = loud
