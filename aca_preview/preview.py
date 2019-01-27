@@ -308,7 +308,7 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
 
         """
         for entry in self:
-            self.check_position_on_ccd(entry)
+            self.check_guide_fid_position_on_ccd(entry)
 
         self.check_guide_geometry()
         self.check_acq_p2()
