@@ -180,6 +180,15 @@ class ACAReviewTable(ACATable):
         aca.context = {}  # Jinja2 context for output HTML review
         aca.messages = []  # Warning messages
 
+    @property
+    def is_OR(self):
+        obsid = float(self.obsid)
+        return abs(obsid) < 38000
+
+    @property
+    def is_ER(self):
+        return not self.is_OR
+
     def set_stars_and_mask(self):
         """Set stars attribute for plotting.
 
@@ -394,20 +403,16 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
 
     def check_acq_p2(self):
         P2 = -np.log10(self.acqs.calc_p_safe())
-        obsid = float(self.obsid)
-        is_OR = abs(obsid) < 38000
-        obs_type = 'OR' if is_OR else 'ER'
-        P2_lim = 2.0 if is_OR else 3.0
+        obs_type = 'OR' if self.is_OR else 'ER'
+        P2_lim = 2.0 if self.is_OR else 3.0
         if P2 < P2_lim:
             self.add_message('critical', f'P2: {P2:.2f} less than {P2_lim} for {obs_type}')
         elif P2 < P2_lim + 1:
             self.add_message('warning', f'P2: {P2:.2f} less than {P2_lim + 1} for {obs_type}')
 
     def check_bright_guide_for_ers(self, n_bright_req=3, bright_lim=9.0):
-        obsid = float(self.obsid)
-        is_OR = abs(obsid) < 38000
         n_bright = np.count_nonzero(self.guides['mag'] < bright_lim)
-        if not is_OR and n_bright < n_bright_req:
+        if self.is_ER and n_bright < n_bright_req:
             self.add_message(
                 'critical', f'ER bright stars: only {n_bright} stars brighter than {bright_lim}')
 
@@ -415,9 +420,7 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         """Warn on ERs with fewer than n_required (8) guide stars.
 
         """
-        obsid = float(self.obsid)
-        is_OR = abs(obsid) < 38000
-        if not is_OR and len(self.guides) < n_required:
+        if self.is_ER and len(self.guides) < n_required:
             self.add_message('critical', f'ER guides stars: only {len(self.guides)} stars')
 
     def check_guide_pos_errs(self):
