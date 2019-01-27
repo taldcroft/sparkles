@@ -1,3 +1,10 @@
+# coding: utf-8
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+
+"""
+Preliminary review of ACA catalogs selected by proseco.
+"""
+import re
 from pathlib import Path
 import pickle
 from itertools import combinations
@@ -14,7 +21,6 @@ from astropy.table import Column
 
 import proseco
 from proseco.catalog import ACATable
-from proseco.core import StarsTable
 import proseco.characteristics as CHAR
 import proseco.characteristics_guide as GUIDE
 
@@ -30,11 +36,31 @@ if not hasattr(CHAR, 'CCD'):
         setattr(CHAR, attr, getattr(GUIDE, attr))
 
 
-def preview_load(load_name, outdir=None):
+def main(sys_args=None):
+    """Command line interface to preview_load()"""
+
+    import argparse
+    parser = argparse.ArgumentParser(description='ACA preliminary review tool')
+    parser.add_argument('load_name',
+                        type=str,
+                        help='Load name (e.g. JAN2119A) or full file name')
+    parser.add_argument('--outdir',
+                        type=str,
+                        help='Output directory (default=<load name>')
+    parser.add_argument('--quiet',
+                        action='store_true',
+                        help='Run quietly')
+    args = parser.parse_args(sys_args)
+
+    preview_load(args.load_name, outdir=args.outdir, loud=(not args.quiet))
+
+
+def preview_load(load_name, outdir=None, loud=False):
     """Do preliminary load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file.  The following options are tried
     in this order:
+    - <load_name> (e.g. 'JAN2119A_proseco.pkl')
     - <load_name>_proseco.pkl (for <load_name> like 'JAN2119A', ORviewer default)
     - <load_name>.pkl
 
@@ -42,29 +68,30 @@ def preview_load(load_name, outdir=None):
 
     :param load_name: Name of loads
     :param outdir: Output directory
+    :param loud: Print status information during checking
     """
     if load_name in CACHE:
         acas_dict = CACHE[load_name]
     else:
-        acas_dict = get_acas(load_name)
+        acas_dict = get_acas(load_name, loud)
         CACHE[load_name] = acas_dict
 
     # Make output directory if needed
     if outdir is None:
-        outdir = load_name
+        outdir = re.sub(r'(_proseco)?.pkl', '', load_name)
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
     # Do the pre-review for each catalog
     acas = []
     for obsid, aca in acas_dict.items():
+        if loud:
+            print(f'Processing obsid {obsid}')
         # Change instance class to include all the review methods. This is legal!
-        aca.__class__ = ACAReviewTable
+        ACAReviewTable.add_review_methods(aca)
         aca.obsid = obsid
         aca.outdir = outdir
-        aca.context = {}
-        aca.messages = []
-        aca.set_stars_and_mask()
+        aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
         aca.preview()
         acas.append(aca)
 
@@ -80,6 +107,8 @@ def preview_load(load_name, outdir=None):
     out_html = template.render(context)
 
     out_filename = outdir / 'index.html'
+    if loud:
+        print(f'Writing output review file {out_filename}')
     with open(out_filename, 'w') as fh:
         fh.write(out_html)
 
@@ -95,10 +124,13 @@ def stylize(text, category):
     return out
 
 
-def get_acas(load_name):
-    filenames = [f'{load_name}_proseco.pkl', f'{load_name}.pkl']
+def get_acas(load_name, loud=False):
+    filenames = [load_name, f'{load_name}_proseco.pkl', f'{load_name}.pkl']
     for filename in filenames:
-        if Path(filename).exists():
+        pth = Path(filename)
+        if pth.exists() and pth.is_file() and pth.suffix == '.pkl':
+            if loud:
+                print(f'Reading pickle file {filename}')
             acas = pickle.load(open(filename, 'rb'))
             return acas
     raise FileNotFoundError(f'no matching pickle file {filenames}')
@@ -134,6 +166,20 @@ def get_summary_text(acas):
 
 
 class ACAReviewTable(ACATable):
+    @classmethod
+    def add_review_methods(cls, aca):
+        """Add review methods to ``aca`` object *in-place*.
+
+        - Change ``aca.__class__`` to ``cls``
+        - Add ``context`` and ``messages`` properties.
+
+        :param aca: ACATable object, modified in place.
+
+        """
+        aca.__class__ = cls
+        aca.context = {}  # Jinja2 context for output HTML review
+        aca.messages = []  # Warning messages
+
     def set_stars_and_mask(self):
         """Set stars attribute for plotting.
 
@@ -333,7 +379,8 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         #     push @orange_warn, sprintf "alarm [%2d] Acq Off (padded) CCD by > 60 arcsec.\n",i
         # }
         # elsif ((entry_type =~ /BOT|ACQ/) and (acq_edge_delta < 0)){
-        #     push @{self->{fyi}}, sprintf "alarm [%2d] Acq Off (padded) CCD (P_ACQ should be < .5)\n",i
+        #     push @{self->{fyi}},
+        #                 sprintf "alarm [%2d] Acq Off (padded) CCD (P_ACQ should be < .5)\n",i
         # }
 
     def add_message(self, category, text, **kwargs):
@@ -357,4 +404,5 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         is_OR = abs(obsid) < 38000
         n_bright = np.count_nonzero(self.guides['mag'] < bright_lim)
         if not is_OR and n_bright < n_bright_req:
-            self.add_message('critical', f'ER bright stars: only {n_bright} stars brighter than {bright_lim}')
+            self.add_message(
+                'critical', f'ER bright stars: only {n_bright} stars brighter than {bright_lim}')
