@@ -47,15 +47,22 @@ def main(sys_args=None):
     parser.add_argument('--outdir',
                         type=str,
                         help='Output directory (default=<load name>')
+    parser.add_argument('--report-level',
+                        type=str,
+                        default='none',
+                        help="Make reports for messages at/above level "
+                             "('all'|'none'|'info'|'caution'|'warning'|'critical') "
+                             "(default='none')")
     parser.add_argument('--quiet',
                         action='store_true',
                         help='Run quietly')
     args = parser.parse_args(sys_args)
 
-    preview_load(args.load_name, outdir=args.outdir, loud=(not args.quiet))
+    preview_load(args.load_name, outdir=args.outdir,
+                 loud=(not args.quiet), report_level=args.report_level)
 
 
-def preview_load(load_name, outdir=None, loud=False):
+def preview_load(load_name, outdir=None, report_level='none', loud=False):
     """Do preliminary load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file.  The following options are tried
@@ -66,9 +73,18 @@ def preview_load(load_name, outdir=None, loud=False):
 
     If ``outdir`` is not provided then it will be set to ``load_name``.
 
+    The ``report_level`` arg specifies the message category at which the full
+    HTML report for guide and acquisition will be generated for obsids with at
+    least one message at or above that level.  The options correspond to
+    standard categories "info", "caution", "warning", and "critical".  The
+    default is "none", meaning no reports are generated.  A final option is
+    "all" which generates a report for every obsid.
+
     :param load_name: Name of loads
     :param outdir: Output directory
+    :param report_level: report level threshold for generating acq and guide report
     :param loud: Print status information during checking
+
     """
     if load_name in CACHE:
         acas_dict = CACHE[load_name]
@@ -91,8 +107,11 @@ def preview_load(load_name, outdir=None, loud=False):
         ACAReviewTable.add_review_methods(aca)
         aca.obsid = obsid
         aca.outdir = outdir
+        aca.report_level = report_level
+        aca.loud = loud
         aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
         aca.preview()
+        aca.make_report()
         acas.append(aca)
 
     context = {}
@@ -186,6 +205,7 @@ class ACAReviewTable(ACATable):
         aca.__class__ = cls
         aca.context = {}  # Jinja2 context for output HTML review
         aca.messages = []  # Warning messages
+        aca.has_reports = False  # Has HTML acq/guide reports
 
     @property
     def is_OR(self):
@@ -197,6 +217,29 @@ class ACAReviewTable(ACATable):
     def is_ER(self):
         """Return ``True`` if obsid corresponds to an ER."""
         return not self.is_OR
+
+    def make_report(self):
+        """Optionally make report for acq and guide.
+
+        """
+        if self.report_level == 'none':
+            return
+
+        if self.report_level != 'all':
+            categories = ['info', 'caution', 'warning', 'critical']
+            idx = categories.index(self.report_level)
+            for category in categories[idx:]:
+                msgs = [msg for msg in self.messages if msg['category'] == category]
+                if msgs:
+                    break
+            else:
+                # No messages at or above required level
+                return
+
+        if self.loud:
+            print(f'  Creating HTML reports for obsid {self.obsid}')
+        super().make_report(rootdir=self.outdir)
+        self.has_reports = True
 
     def set_stars_and_mask(self):
         """Set stars attribute for plotting.
@@ -308,7 +351,7 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
 
         """
         for entry in self:
-            self.check_position_on_ccd(entry)
+            self.check_guide_fid_position_on_ccd(entry)
 
         self.check_guide_geometry()
         self.check_acq_p2()
