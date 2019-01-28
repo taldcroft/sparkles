@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from Quaternion import Quat
 from jinja2 import Template
-from chandra_aca.transform import yagzag_to_pixels
+from chandra_aca.transform import yagzag_to_pixels, mag_to_count_rate
 from chandra_aca.star_probs import guide_count
 from astropy.table import Column
 
@@ -125,6 +125,11 @@ def stylize(text, category):
 
 
 def get_acas(load_name, loud=False):
+    """Get dict of proseco ACATable pickles for ``load_name``
+
+    :param load_name: load name (see preview_load() doc for details)
+    :param loud: print processing information
+    """
     filenames = [load_name, f'{load_name}_proseco.pkl', f'{load_name}.pkl']
     for filename in filenames:
         pth = Path(filename)
@@ -146,6 +151,8 @@ def get_summary_text(acas):
       OBSID = -3898   at 2019:027:21:58:37.828   7.8 ACQ | 5.0 GUI |
       OBSID = 21899   at 2019:028:01:17:39.066   7.8 ACQ | 5.0 GUI |
 
+    :param acas: list of ACATable objects
+    :returns: str summary text
     """
     lines = []
     for aca in acas:
@@ -180,6 +187,17 @@ class ACAReviewTable(ACATable):
         aca.context = {}  # Jinja2 context for output HTML review
         aca.messages = []  # Warning messages
 
+    @property
+    def is_OR(self):
+        """Return ``True`` if obsid corresponds to an OR."""
+        obsid = float(self.obsid)
+        return abs(obsid) < 38000
+
+    @property
+    def is_ER(self):
+        """Return ``True`` if obsid corresponds to an ER."""
+        return not self.is_OR
+
     def set_stars_and_mask(self):
         """Set stars attribute for plotting.
 
@@ -199,6 +217,9 @@ class ACAReviewTable(ACATable):
             _, acqs.bad_stars = acqs.get_acq_candidates(acqs.stars)
 
     def make_starcat_plot(self):
+        """Make star catalog plot for this observation.
+
+        """
         plotname = f'cat{self.obsid}.png'
         outfile = self.outdir / plotname
         self.context['catalog_plot'] = plotname
@@ -214,8 +235,9 @@ class ACAReviewTable(ACATable):
         plt.close(fig)
 
     def get_text_pre(self):
-        """Get pre-formatted text for report."""
+        """Get pre-formatted text for report.
 
+        """
         P2 = -np.log10(self.acqs.calc_p_safe())
         att = Quat(self.att)
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
@@ -245,8 +267,9 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         return text_pre
 
     def get_formatted_messages(self):
-        """Format message dicts into pre-formatted lines for the preview report"""
+        """Format message dicts into pre-formatted lines for the preview report.
 
+        """
         lines = []
         for message in self.messages:
             category = message['category']
@@ -259,7 +282,9 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         return out
 
     def add_row_col(self):
-        """Add row and col columns if not present"""
+        """Add row and col columns if not present
+
+        """
         if 'row' in self.colnames:
             return
 
@@ -279,15 +304,22 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         self.context['text_pre'] = self.get_text_pre()
 
     def check_catalog(self):
+        """Perform all star catalog checks.
+
+        """
         for entry in self:
-            self.check_position_on_ccd(entry)
+            self.check_guide_fid_position_on_ccd(entry)
 
         self.check_guide_geometry()
         self.check_acq_p2()
         self.check_bright_guide_for_ers()
+        self.check_enough_guide_for_ers()
+        self.check_guide_pos_errs()
+        self.check_imposters()
+        self.check_too_bright_guide()
 
     def check_guide_geometry(self):
-        """Check for guide stars too tightly clustered
+        """Check for guide stars too tightly clustered.
 
         (1) Check for any set of n_guide-2 stars within 500" of each other.
         The nominal check here is a cluster of 3 stars within 500".  For
@@ -331,7 +363,10 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
             msg = f'Guide stars all clustered within {min_dist}" radius'
             self.add_message('warning', msg)
 
-    def check_position_on_ccd(self, entry):
+    def check_guide_fid_position_on_ccd(self, entry):
+        """Check position of guide stars and fid lights on CCD.
+
+        """
         entry_type = entry['type']
 
         # Shortcuts and translate y/z to yaw/pitch
@@ -369,40 +404,124 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
                         self.add_message(category, text, idx=entry['idx'])
                         break
 
-        # For acq stars, the distance to the row/col padded limits are also confirmed,
-        # but code to track which boundary is exceeded (row or column) is not present.
-        # Note from above that the pix_row_pad used for row_lim has 7 more pixels of padding
-        # than the pix_col_pad used to determine col_lim.
-        # acq_edge_delta = min((row_lim - dither_acq_y / ang_per_pix) - abs(pixel_row),
-        #                          (col_lim - dither_acq_p / ang_per_pix) - abs(pixel_col))
-        # if ((entry_type =~ /BOT|ACQ/) and (acq_edge_delta < (-1 * 12))){
-        #     push @orange_warn, sprintf "alarm [%2d] Acq Off (padded) CCD by > 60 arcsec.\n",i
-        # }
-        # elsif ((entry_type =~ /BOT|ACQ/) and (acq_edge_delta < 0)){
-        #     push @{self->{fyi}},
-        #                 sprintf "alarm [%2d] Acq Off (padded) CCD (P_ACQ should be < .5)\n",i
-        # }
+    # TO DO: acq star position check:
+    # For acq stars, the distance to the row/col padded limits are also confirmed,
+    # but code to track which boundary is exceeded (row or column) is not present.
+    # Note from above that the pix_row_pad used for row_lim has 7 more pixels of padding
+    # than the pix_col_pad used to determine col_lim.
+    # acq_edge_delta = min((row_lim - dither_acq_y / ang_per_pix) - abs(pixel_row),
+    #                          (col_lim - dither_acq_p / ang_per_pix) - abs(pixel_col))
+    # if ((entry_type =~ /BOT|ACQ/) and (acq_edge_delta < (-1 * 12))){
+    #     push @orange_warn, sprintf "alarm [%2d] Acq Off (padded) CCD by > 60 arcsec.\n",i
+    # }
+    # elsif ((entry_type =~ /BOT|ACQ/) and (acq_edge_delta < 0)){
+    #     push @{self->{fyi}},
+    #                 sprintf "alarm [%2d] Acq Off (padded) CCD (P_ACQ should be < .5)\n",i
+    # }
 
     def add_message(self, category, text, **kwargs):
+        """Add message to internal messages list.
+
+        :param category: message category ('info', 'caution', 'warning', 'critical')
+        :param text: message text
+        :param \**kwargs: other kwarg
+
+        """
         message = {'text': text, 'category': category}
         message.update(kwargs)
         self.messages.append(message)
 
     def check_acq_p2(self):
+        """Check acquisition catalog safing probability.
+
+        """
         P2 = -np.log10(self.acqs.calc_p_safe())
-        obsid = float(self.obsid)
-        is_OR = abs(obsid) < 38000
-        obs_type = 'OR' if is_OR else 'ER'
-        P2_lim = 2.0 if is_OR else 3.0
+        obs_type = 'OR' if self.is_OR else 'ER'
+        P2_lim = 2.0 if self.is_OR else 3.0
         if P2 < P2_lim:
             self.add_message('critical', f'P2: {P2:.2f} less than {P2_lim} for {obs_type}')
         elif P2 < P2_lim + 1:
             self.add_message('warning', f'P2: {P2:.2f} less than {P2_lim + 1} for {obs_type}')
 
     def check_bright_guide_for_ers(self, n_bright_req=3, bright_lim=9.0):
-        obsid = float(self.obsid)
-        is_OR = abs(obsid) < 38000
+        """Check for at least 3 guide stars brighter than 9th mag for ERs.
+
+        """
         n_bright = np.count_nonzero(self.guides['mag'] < bright_lim)
-        if not is_OR and n_bright < n_bright_req:
+        if self.is_ER and n_bright < n_bright_req:
             self.add_message(
                 'critical', f'ER bright stars: only {n_bright} stars brighter than {bright_lim}')
+
+    def check_enough_guide_for_ers(self, n_required=8):
+        """Warn on ERs with fewer than n_required (8) guide stars.
+
+        """
+        if self.is_ER and len(self.guides) < n_required:
+            self.add_message('critical', f'ER guides stars: only {len(self.guides)} stars')
+
+    def check_guide_pos_errs(self):
+        """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
+
+        """
+        for star in self.guides:
+            agasc_id = star['id']
+            # POS_ERR is in milliarcsecs in the table
+            pos_err = star['POS_ERR'] * 0.001
+            for limit, category in ((2.0, 'critical'),
+                                    (1.0, 'warning')):
+                if pos_err > limit:
+                    self.add_message(
+                        category,
+                        f'Guide star {agasc_id} has POS_ERR {pos_err:.2f}, limit {limit} arcsec')
+                    break
+
+    def check_imposters(self):
+        """Warn on stars with larger imposter centroid offsets
+
+        """
+        # Borrow the imposter offset method from starcheck
+        def imposter_offset(cand_mag, imposter_mag):
+                """
+                For a given candidate star and the pseudomagnitude of the brightest 2x2 imposter
+                calculate the max offset of the imposter counts are at the edge of the 6x6
+                (as if they were in one pixel).  This is somewhat the inverse of
+                proseco.get_pixmag_for_offset .
+                """
+                cand_counts = mag_to_count_rate(cand_mag)
+                spoil_counts = mag_to_count_rate(imposter_mag)
+                return spoil_counts * 3 * 5 / (spoil_counts + cand_counts)
+
+        for star in self.guides:
+            agasc_id = star['id']
+            offset = imposter_offset(star['mag'], star['imp_mag'])
+            for limit, category in ((4.0, 'critical'),
+                                    (2.5, 'warning')):
+                if offset > limit:
+                    self.add_message(
+                        category,
+                        f'Guide star {agasc_id} imposter offset {offset:.1f}, limit {limit} arcsec')
+                    break
+
+    def check_too_bright_guide(self):
+        """Warn on guide stars that may be too bright.
+
+        - Critical if MAG_ACA_ERR used in selection is less than 0.1
+        - Critical if within 3 * mag_err of the hard 5.8 limit.
+        - Warning if brighter than 6.1 (should be double-checked in
+          context of other candidates).
+
+        """
+        for star in self.guides:
+            agasc_id = star['id']
+            if star['mag'] - (3 * star['mag_err']) < 5.8:
+                self.add_message(
+                    'critical',
+                    f'Guide star {agasc_id} within 3*mag_err of 5.8')
+            elif (star['mag'] < 6.1) and (star['MAG_ACA_ERR'] * 0.01 < 0.1):
+                self.add_message(
+                    'critical',
+                    f'Guide star {agasc_id} < 6.1 with small MAG_ACA_ERR.  Double check selection.')
+            elif star['mag'] < 6.1:
+                self.add_message(
+                    'warning',
+                    f'Guide star {agasc_id} < 6.1. Double check selection.')
