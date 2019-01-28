@@ -207,6 +207,7 @@ class ACAReviewTable(ACATable):
 
         """
         aca.__class__ = cls
+        aca.add_row_col()
         aca.context = {}  # Jinja2 context for output HTML review
         aca.messages = []  # Warning messages
         aca.loud = loud
@@ -391,14 +392,16 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         """
         for entry in self:
             self.check_guide_fid_position_on_ccd(entry)
+            if entry['id'] in self.guides['id']:
+                guide_star = self.guides.get_id(entry['id'])
+                self.check_pos_err_guide(guide_star)
+                self.check_imposters_guide(guide_star)
+                self.check_too_bright_guide(guide_star)
 
         self.check_guide_geometry()
         self.check_acq_p2()
         self.check_bright_guide_for_ers()
         self.check_enough_guide_for_ers()
-        self.check_guide_pos_errs()
-        self.check_imposters()
-        self.check_too_bright_guide()
 
     def check_guide_geometry(self):
         """Check for guide stars too tightly clustered.
@@ -539,74 +542,84 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
 
         """
         if self.is_ER and len(self.guides) < n_required:
-            self.add_message('critical', f'ER guides stars: only {len(self.guides)} stars')
+            self.add_message('critical', f'ER guide stars: only {len(self.guides)} stars')
 
-    def check_guide_pos_errs(self):
+    def check_pos_err_guide(self, star):
         """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
 
         """
-        for star in self.guides:
-            agasc_id = star['id']
-            # POS_ERR is in milliarcsecs in the table
-            pos_err = star['POS_ERR'] * 0.001
-            for limit, category in ((2.0, 'critical'),
-                                    (1.0, 'warning')):
-                if pos_err > limit:
-                    self.add_message(
-                        category,
-                        f'Guide star {agasc_id} has POS_ERR {pos_err:.2f}, limit {limit} arcsec')
-                    break
+        agasc_id = star['id']
+        idx = self.get_id(agasc_id)['idx']
+        # POS_ERR is in milliarcsecs in the table
+        pos_err = star['POS_ERR'] * 0.001
+        for limit, category in ((2.0, 'critical'),
+                                (1.0, 'warning')):
+            if pos_err > limit:
+                self.add_message(
+                    category,
+                    f'Guide star {agasc_id} POS_ERR {pos_err:.2f}, limit {limit} arcsec',
+                    idx=idx)
+                break
 
-    def check_imposters(self):
+    def check_imposters_guide(self, star):
         """Warn on stars with larger imposter centroid offsets
 
         """
         # Borrow the imposter offset method from starcheck
         def imposter_offset(cand_mag, imposter_mag):
-                """
-                For a given candidate star and the pseudomagnitude of the brightest 2x2 imposter
-                calculate the max offset of the imposter counts are at the edge of the 6x6
-                (as if they were in one pixel).  This is somewhat the inverse of
-                proseco.get_pixmag_for_offset .
-                """
-                cand_counts = mag_to_count_rate(cand_mag)
-                spoil_counts = mag_to_count_rate(imposter_mag)
-                return spoil_counts * 3 * 5 / (spoil_counts + cand_counts)
+            """
+            For a given candidate star and the pseudomagnitude of the brightest 2x2 imposter
+            calculate the max offset of the imposter counts are at the edge of the 6x6
+            (as if they were in one pixel).  This is somewhat the inverse of
+            proseco.get_pixmag_for_offset .
+            """
+            cand_counts = mag_to_count_rate(cand_mag)
+            spoil_counts = mag_to_count_rate(imposter_mag)
+            return spoil_counts * 3 * 5 / (spoil_counts + cand_counts)
 
-        for star in self.guides:
-            agasc_id = star['id']
-            offset = imposter_offset(star['mag'], star['imp_mag'])
-            for limit, category in ((4.0, 'critical'),
-                                    (2.5, 'warning')):
-                if offset > limit:
-                    self.add_message(
-                        category,
-                        f'Guide star {agasc_id} imposter offset {offset:.1f}, limit {limit} arcsec')
-                    break
+        agasc_id = star['id']
+        idx = self.get_id(agasc_id)['idx']
+        offset = imposter_offset(star['mag'], star['imp_mag'])
+        for limit, category in ((4.0, 'critical'),
+                                (2.5, 'warning')):
+            if offset > limit:
+                self.add_message(
+                    category,
+                    f'Guide star imposter offset {offset:.1f}, limit {limit} arcsec',
+                    idx=idx)
+                break
 
-    def check_too_bright_guide(self):
+    def check_too_bright_guide(self, star):
         """Warn on guide stars that may be too bright.
 
         - Critical if MAG_ACA_ERR used in selection is less than 0.1
-        - Critical if within 3 * mag_err of the hard 5.8 limit.
+        - Critical if within 2 * mag_err of the hard 5.8 limit, warn within 3 * mag_err
         - Warning if brighter than 6.1 (should be double-checked in
           context of other candidates).
 
         """
-        for star in self.guides:
-            agasc_id = star['id']
-            if star['mag'] - (3 * star['mag_err']) < 5.8:
+        agasc_id = star['id']
+        idx = self.get_id(agasc_id)['idx']
+        mag_err = star['mag_err']
+        mag_aca_err = star['MAG_ACA_ERR'] * 0.01
+        for mult, category in ((2, 'critical'),
+                               (3, 'warning')):
+            if star['mag'] - (mult * mag_err) < 5.8:
                 self.add_message(
-                    'critical',
-                    f'Guide star {agasc_id} within 3*mag_err of 5.8')
-            elif (star['mag'] < 6.1) and (star['MAG_ACA_ERR'] * 0.01 < 0.1):
-                self.add_message(
-                    'critical',
-                    f'Guide star {agasc_id} < 6.1 with small MAG_ACA_ERR.  Double check selection.')
-            elif star['mag'] < 6.1:
-                self.add_message(
-                    'warning',
-                    f'Guide star {agasc_id} < 6.1. Double check selection.')
+                    category,
+                    f'Guide star {agasc_id} within {mult}*mag_err of 5.8 '
+                    f'(mag_err={mag_err:.2f})', idx=idx)
+                break
+        if (star['mag'] < 6.1) and (mag_aca_err < 0.1):
+            self.add_message(
+                'critical',
+                f'Guide star {agasc_id} < 6.1 with small MAG_ACA_ERR={mag_aca_err:.2f}.  '
+                f'Double check selection.',
+                idx=idx)
+        elif star['mag'] < 6.1:
+            self.add_message(
+                'warning',
+                f'Guide star {agasc_id} < 6.1. Double check selection.', idx=idx)
 
 
 # Run from source ``python -m aca_preview.preview <load_name> [options]``
