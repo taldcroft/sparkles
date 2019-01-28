@@ -209,11 +209,11 @@ class ACAReviewTable(ACATable):
         aca.loud = loud
 
         # Input obsid could be a string repr of a number that might have have
-        # up to 1 decimal point.  This is the case when obsid is taken from the
+        # up to 2 decimal points.  This is the case when obsid is taken from the
         # ORviewer dict of ACATable pickles from prelim review.  Tidy things up
         # in these cases.
         if obsid is not None:
-            f_obsid = round(float(obsid), 1)
+            f_obsid = round(float(obsid), 2)
             i_obsid = int(f_obsid)
             num_obsid = i_obsid if (i_obsid == f_obsid) else f_obsid
 
