@@ -392,7 +392,7 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         """
         for entry in self:
             self.check_guide_fid_position_on_ccd(entry)
-            if entry['id'] in self.guides:
+            if entry['id'] in self.guides['id']:
                 guide_star = self.guides.get_id(entry['id'])
                 self.check_pos_err_guide(guide_star)
                 self.check_imposters_guide(guide_star)
