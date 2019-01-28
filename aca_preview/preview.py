@@ -47,15 +47,22 @@ def main(sys_args=None):
     parser.add_argument('--outdir',
                         type=str,
                         help='Output directory (default=<load name>')
+    parser.add_argument('--report-level',
+                        type=str,
+                        default='warning',
+                        help="Make reports for messages at/above level "
+                             "('all'|'none'|'info'|'caution'|'warning'|'critical') "
+                             "(default='warning')")
     parser.add_argument('--quiet',
                         action='store_true',
                         help='Run quietly')
     args = parser.parse_args(sys_args)
 
-    preview_load(args.load_name, outdir=args.outdir, loud=(not args.quiet))
+    preview_load(args.load_name, outdir=args.outdir,
+                 loud=(not args.quiet), report_level=args.report_level)
 
 
-def preview_load(load_name, outdir=None, loud=False):
+def preview_load(load_name, outdir=None, report_level='none', loud=False):
     """Do preliminary load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file.  The following options are tried
@@ -66,9 +73,18 @@ def preview_load(load_name, outdir=None, loud=False):
 
     If ``outdir`` is not provided then it will be set to ``load_name``.
 
+    The ``report_level`` arg specifies the message category at which the full
+    HTML report for guide and acquisition will be generated for obsids with at
+    least one message at or above that level.  The options correspond to
+    standard categories "info", "caution", "warning", and "critical".  The
+    default is "none", meaning no reports are generated.  A final option is
+    "all" which generates a report for every obsid.
+
     :param load_name: Name of loads
     :param outdir: Output directory
+    :param report_level: report level threshold for generating acq and guide report
     :param loud: Print status information during checking
+
     """
     if load_name in CACHE:
         acas_dict = CACHE[load_name]
@@ -82,21 +98,23 @@ def preview_load(load_name, outdir=None, loud=False):
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    # Do the pre-review for each catalog
+    # Convert dict of ACATable to list of ACAPreviewTable with obsid set correctly
     acas = []
     for obsid, aca in acas_dict.items():
-        if loud:
-            print(f'Processing obsid {obsid}')
-        # Change instance class to include all the review methods. This is legal!
-        ACAReviewTable.add_review_methods(aca)
-        aca.obsid = obsid
-        aca.outdir = outdir
-        aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
-        aca.preview()
+        # Change instance class ``aca`` to include all the review methods. This is legal!
+        ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud, preview_dir=outdir)
         acas.append(aca)
 
-    context = {}
+    # Do the pre-review for all the catalogs
+    for aca in acas:
+        if loud:
+            print(f'Processing obsid {aca.obsid}')
 
+        aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
+        aca.preview()
+        aca.make_report(report_level)
+
+    context = {}
     context['load_name'] = load_name.upper()
     context['version'] = VERSION
     context['acas'] = acas
@@ -154,9 +172,12 @@ def get_summary_text(acas):
     :param acas: list of ACATable objects
     :returns: str summary text
     """
+    obsid_strs = [str(aca.obsid) for aca in acas]
+    max_obsid_len = max(len(obsid_str) for obsid_str in obsid_strs)
     lines = []
-    for aca in acas:
-        line = (f'<a href="#obsid{aca.obsid}">OBSID = {aca.obsid:7s}</a>'
+    for aca, obsid_str in zip(acas, obsid_strs):
+        fill = " " * (max_obsid_len - len(obsid_str))
+        line = (f'<a href="#obsid{aca.obsid}">OBSID = {obsid_str}</a>{fill}'
                 f' at {aca.date}   '
                 f'{aca.acq_count:.1f} ACQ | {aca.guide_count:.1f} GUI |')
 
@@ -174,29 +195,90 @@ def get_summary_text(acas):
 
 class ACAReviewTable(ACATable):
     @classmethod
-    def add_review_methods(cls, aca):
+    def add_review_methods(cls, aca, *, obsid=None, loud=False, preview_dir='.'):
         """Add review methods to ``aca`` object *in-place*.
 
         - Change ``aca.__class__`` to ``cls``
         - Add ``context`` and ``messages`` properties.
 
         :param aca: ACATable object, modified in place.
+        :param obsid: obsid (optional)
+        :param loud: print processing status info (default=False)
 
         """
         aca.__class__ = cls
         aca.context = {}  # Jinja2 context for output HTML review
         aca.messages = []  # Warning messages
+        aca.loud = loud
+
+        # Input obsid could be a string repr of a number that might have have
+        # up to 2 decimal points.  This is the case when obsid is taken from the
+        # ORviewer dict of ACATable pickles from prelim review.  Tidy things up
+        # in these cases.
+        if obsid is not None:
+            f_obsid = round(float(obsid), 2)
+            i_obsid = int(f_obsid)
+            num_obsid = i_obsid if (i_obsid == f_obsid) else f_obsid
+
+            aca.obsid = num_obsid
+            aca.acqs.obsid = num_obsid
+            aca.guides.obsid = num_obsid
+            aca.fids.obsid = num_obsid
+
+        # Clean up some attributes so acq/guide report summary looks OK.  This should
+        # be fixed upstream at some point.
+        for obj in (aca.acqs, aca.guides):
+            obj.att = [round(val, 6) for val in Quat(obj.att).equatorial]
+            obj.dither.y = round(obj.dither.y, 2)
+            obj.dither.z = round(obj.dither.z, 2)
+            obj.t_ccd = round(obj.t_ccd, 2)
+        aca.acqs.man_angle = round(obj.man_angle, 2)
+
+        # Output directory for the main prelim review index.html and for this obsid.
+        # Note that the obs{aca.obsid} is not flexible because it must match the
+        # convention used in ACATable.make_report().  Oops.
+        aca.preview_dir = Path(preview_dir)
+        aca.obsid_dir = aca.preview_dir / f'obs{aca.obsid}'
+        aca.obsid_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def is_OR(self):
         """Return ``True`` if obsid corresponds to an OR."""
-        obsid = float(self.obsid)
-        return abs(obsid) < 38000
+        return abs(self.obsid) < 38000
 
     @property
     def is_ER(self):
         """Return ``True`` if obsid corresponds to an ER."""
         return not self.is_OR
+
+    def make_report(self, report_level):
+        """Optionally make report for acq and guide.
+
+        """
+        if report_level == 'none':
+            return
+
+        if report_level != 'all':
+            categories = ['info', 'caution', 'warning', 'critical']
+            idx = categories.index(report_level)
+            for category in categories[idx:]:
+                msgs = [msg for msg in self.messages if msg['category'] == category]
+                if msgs:
+                    break
+            else:
+                # No messages at or above required level
+                return
+
+        if self.loud:
+            print(f'  Creating HTML reports for obsid {self.obsid}')
+
+        # Make reports in preview_dir/obs<obsid>/{acq,guide}/
+        super().make_report(rootdir=self.preview_dir)
+
+        # Let the jinja template know this has reports and set the correct
+        # relative link from <preview_dir>/index.html to the reports directory
+        # containing acq/index.html and guide/index.html files.
+        self.context['reports_dir'] = self.obsid_dir.relative_to(self.preview_dir)
 
     def set_stars_and_mask(self):
         """Set stars attribute for plotting.
@@ -220,9 +302,9 @@ class ACAReviewTable(ACATable):
         """Make star catalog plot for this observation.
 
         """
-        plotname = f'cat{self.obsid}.png'
-        outfile = self.outdir / plotname
-        self.context['catalog_plot'] = plotname
+        plotname = f'starcat.png'
+        outfile = self.obsid_dir / plotname
+        self.context['catalog_plot'] = outfile.relative_to(self.preview_dir)
 
         if outfile.exists():
             return
@@ -525,3 +607,8 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
                 self.add_message(
                     'warning',
                     f'Guide star {agasc_id} < 6.1. Double check selection.')
+
+
+# Run from source ``python -m aca_preview.preview <load_name> [options]``
+if __name__ == '__main__':
+    main()
