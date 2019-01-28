@@ -604,3 +604,8 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
                 self.add_message(
                     'warning',
                     f'Guide star {agasc_id} < 6.1. Double check selection.')
+
+
+# Run from source ``python -m aca_preview.preview <load_name> [options]``
+if __name__ == '__main__':
+    main()
