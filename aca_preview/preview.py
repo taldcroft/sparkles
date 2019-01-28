@@ -207,6 +207,7 @@ class ACAReviewTable(ACATable):
 
         """
         aca.__class__ = cls
+        aca.add_row_col()
         aca.context = {}  # Jinja2 context for output HTML review
         aca.messages = []  # Warning messages
         aca.loud = loud
