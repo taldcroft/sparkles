@@ -72,7 +72,7 @@ def test_pos_err_on_guide():
     stars.add_fake_star(id=101, yang=0, zang=500, mag=8.0)
     aca = get_aca_catalog(**mod_std_info(n_fid=0), stars=stars, dark=DARK40, raise_exc=True)
     ACAReviewTable.add_review_methods(aca)
-    aca.check_pos_err_guide(aca[0])
+    aca.check_pos_err_guide(aca.guides.get_id(100))
     assert len(aca.messages) == 1
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
@@ -95,7 +95,7 @@ def test_imposters_on_guide():
     aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), stars=stars, dark=dark_with_badpix,
                           raise_exc=True)
     ACAReviewTable.add_review_methods(aca)
-    aca.check_imposters_guide(aca[aca['id'] == 110][0])
+    aca.check_imposters_guide(aca.guides.get_id(110))
     assert len(aca.messages) == 1
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
@@ -106,11 +106,11 @@ def test_too_bright_guide_magerr():
     """Test the check for too-bright guide stars"""
     stars = StarsTable.empty()
     # Add two stars because separate P2 tests seem to break with just one star
-    stars.add_fake_star(id=100, yang=100, zang=-200, mag=6.0, mag_err=.1)
+    stars.add_fake_star(id=100, yang=100, zang=-200, mag=6.0, mag_err=0.1)
     stars.add_fake_star(id=101, yang=0, zang=500, mag=8.0)
     aca = get_aca_catalog(**mod_std_info(n_fid=0), stars=stars, dark=DARK40, raise_exc=True)
     ACAReviewTable.add_review_methods(aca)
-    aca.check_too_bright_guide(aca[0])
+    aca.check_too_bright_guide(aca.guides.get_id(100))
     assert len(aca.messages) == 1
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
