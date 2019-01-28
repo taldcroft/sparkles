@@ -392,9 +392,11 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         """
         for entry in self:
             self.check_guide_fid_position_on_ccd(entry)
-            self.check_pos_err_guide(entry)
-            self.check_imposters_guide(entry)
-            self.check_too_bright_guide(entry)
+            if entry['id'] in self.guides:
+                guide_star = self.guides.get_id(entry['id'])
+                self.check_pos_err_guide(guide_star)
+                self.check_imposters_guide(guide_star)
+                self.check_too_bright_guide(guide_star)
 
         self.check_guide_geometry()
         self.check_acq_p2()
@@ -542,15 +544,12 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         if self.is_ER and len(self.guides) < n_required:
             self.add_message('critical', f'ER guide stars: only {len(self.guides)} stars')
 
-    def check_pos_err_guide(self, entry):
+    def check_pos_err_guide(self, star):
         """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
 
         """
-        if entry['id'] not in self.guides['id']:
-            return
-        star = self.guides[self.guides['id'] == entry['id']][0]
         agasc_id = star['id']
-        idx = entry['idx']
+        idx = self.get_id(agasc_id)['idx']
         # POS_ERR is in milliarcsecs in the table
         pos_err = star['POS_ERR'] * 0.001
         for limit, category in ((2.0, 'critical'),
@@ -562,7 +561,7 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
                     idx=idx)
                 break
 
-    def check_imposters_guide(self, entry):
+    def check_imposters_guide(self, star):
         """Warn on stars with larger imposter centroid offsets
 
         """
@@ -578,10 +577,8 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
             spoil_counts = mag_to_count_rate(imposter_mag)
             return spoil_counts * 3 * 5 / (spoil_counts + cand_counts)
 
-        if entry['id'] not in self.guides['id']:
-            return
-        star = self.guides[self.guides['id'] == entry['id']][0]
-        idx = entry['idx']
+        agasc_id = star['id']
+        idx = self.get_id(agasc_id)['idx']
         offset = imposter_offset(star['mag'], star['imp_mag'])
         for limit, category in ((4.0, 'critical'),
                                 (2.5, 'warning')):
@@ -592,7 +589,7 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
                     idx=idx)
                 break
 
-    def check_too_bright_guide(self, entry):
+    def check_too_bright_guide(self, star):
         """Warn on guide stars that may be too bright.
 
         - Critical if MAG_ACA_ERR used in selection is less than 0.1
@@ -601,11 +598,8 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
           context of other candidates).
 
         """
-        if entry['id'] not in self.guides['id']:
-            return
-        star = self.guides[self.guides['id'] == entry['id']][0]
-        idx = entry['idx']
         agasc_id = star['id']
+        idx = self.get_id(agasc_id)['idx']
         if star['mag'] - (3 * star['mag_err']) < 5.8:
             self.add_message(
                 'critical',
