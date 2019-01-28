@@ -245,7 +245,7 @@ class ACAReviewTable(ACATable):
     @property
     def is_OR(self):
         """Return ``True`` if obsid corresponds to an OR."""
-        return abs(self.obsid) < 38000
+        return self.obsid < 38000
 
     @property
     def is_ER(self):
