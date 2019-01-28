@@ -30,7 +30,6 @@ CACHE = {}
 ACA_PREVIEW_VERSION = aca_preview_test(get_version=True)
 PROSECO_VERSION = proseco.test(get_version=True)
 FILEDIR = Path(__file__).parent
-CATEGORIES = ('critical', 'warning', 'caution', 'info')
 
 
 # Fix characteristics compatibility issues between 4.3.x and 4.4+
@@ -116,7 +115,10 @@ def preview_load(load_name, outdir=None, report_level='none', loud=False):
 
         aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
         aca.preview()
-        aca.make_report(report_level)
+
+        # If any aca.messages have category above report level then make report
+        if aca.messages >= report_level:
+            aca.make_report()
 
     context = {}
     context['load_name'] = load_name.upper()
@@ -187,8 +189,8 @@ def get_summary_text(acas):
                 f'{aca.acq_count:.1f} ACQ | {aca.guide_count:.1f} GUI |')
 
         # Warnings
-        for category in CATEGORIES:
-            msgs = [msg for msg in aca.messages if msg['category'] == category]
+        for category in reversed(MessagesList.categories):
+            msgs = aca.messages == category
             if msgs:
                 text = stylize(f' {category.capitalize()}: {len(msgs)}', category)
                 line += text
@@ -196,6 +198,24 @@ def get_summary_text(acas):
         lines.append(line)
 
     return '\n'.join(lines)
+
+
+class MessagesList(list):
+    categories = ('all', 'info', 'caution', 'warning', 'critical', 'none')
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return [msg for msg in self if msg['category'] == other]
+        else:
+            return super().__eq__(other)
+
+    def __ge__(self, other):
+        if isinstance(other, str):
+            other_idx = self.categories.index(other)
+            return [msg for msg in self
+                    if self.categories.index(msg['category']) >= other_idx]
+        else:
+            return super().__ge__(other)
 
 
 class ACAReviewTable(ACATable):
@@ -214,7 +234,7 @@ class ACAReviewTable(ACATable):
         aca.__class__ = cls
         aca.add_row_col()
         aca.context = {}  # Jinja2 context for output HTML review
-        aca.messages = []  # Warning messages
+        aca.messages = MessagesList()  # Warning messages
         aca.loud = loud
 
         # Input obsid could be a string repr of a number that might have have
@@ -257,24 +277,10 @@ class ACAReviewTable(ACATable):
         """Return ``True`` if obsid corresponds to an ER."""
         return not self.is_OR
 
-    def make_report(self, report_level):
-        """Optionally make report for acq and guide.
+    def make_report(self):
+        """Make report for acq and guide.
 
         """
-        if report_level == 'none':
-            return
-
-        if report_level != 'all':
-            categories = ['info', 'caution', 'warning', 'critical']
-            idx = categories.index(report_level)
-            for category in categories[idx:]:
-                msgs = [msg for msg in self.messages if msg['category'] == category]
-                if msgs:
-                    break
-            else:
-                # No messages at or above required level
-                return
-
         if self.loud:
             print(f'  Creating HTML reports for obsid {self.obsid}')
 
