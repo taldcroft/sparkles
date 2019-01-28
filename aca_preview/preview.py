@@ -172,9 +172,12 @@ def get_summary_text(acas):
     :param acas: list of ACATable objects
     :returns: str summary text
     """
+    obsid_strs = [str(aca.obsid) for aca in acas]
+    max_obsid_len = max(len(obsid_str) for obsid_str in obsid_strs)
     lines = []
-    for aca in acas:
-        line = (f'<a href="#obsid{aca.obsid}">OBSID = {str(aca.obsid):7s}</a>'
+    for aca, obsid_str in zip(acas, obsid_strs):
+        fill = " " * (max_obsid_len - len(obsid_str))
+        line = (f'<a href="#obsid{aca.obsid}">OBSID = {obsid_str}</a>{fill}'
                 f' at {aca.date}   '
                 f'{aca.acq_count:.1f} ACQ | {aca.guide_count:.1f} GUI |')
 
