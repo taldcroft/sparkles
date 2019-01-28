@@ -52,7 +52,7 @@ def main(sys_args=None):
                         default='warning',
                         help="Make reports for messages at/above level "
                              "('all'|'none'|'info'|'caution'|'warning'|'critical') "
-                             "(default='none')")
+                             "(default='warning')")
     parser.add_argument('--quiet',
                         action='store_true',
                         help='Run quietly')
