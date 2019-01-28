@@ -4,7 +4,7 @@ from chandra_aca.transform import mag_to_count_rate
 from proseco import get_aca_catalog
 from proseco.core import StarsTable
 from proseco.tests.test_common import DARK40, STD_INFO, mod_std_info
-from aca_preview.preview import ACAReviewTable
+from ..preview import ACAReviewTable
 
 
 def test_check_P2():
