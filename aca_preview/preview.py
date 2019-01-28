@@ -214,7 +214,7 @@ class ACAReviewTable(ACATable):
         # in these cases.
         if obsid is not None:
             f_obsid = round(float(obsid), 1)
-            i_obsid = int(obsid)
+            i_obsid = int(f_obsid)
             num_obsid = i_obsid if (i_obsid == f_obsid) else f_obsid
 
             aca.obsid = num_obsid
