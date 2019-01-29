@@ -158,7 +158,10 @@ def preview_load(load_name, *, outdir=None,
 
         # If any aca.messages have category above report level then make report
         if aca.messages >= report_level:
-            aca.make_report()
+            try:
+                aca.make_report()
+            except Exception as err:
+                aca.add_message('critical', text=f'Running make_report() failed: {err}')
 
         if aca.messages >= roll_level:
             better_acas, better_stats = aca.get_better_catalogs()
