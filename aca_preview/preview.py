@@ -464,8 +464,8 @@ Date: {self.date}
 Probability of acquiring 2 or fewer stars (10^-x): {P2:.2f}
 Acquisition Stars Expected: {self.acq_count:.2f}
 Guide Stars count: {self.guide_count:.2f}
-Predicted Guide CCD temperature (max): {self.t_ccd_guide:.1f}
-Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
+Predicted Guide CCD temperature (max): {self.acqs.t_ccd:.1f}
+Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
 
         return text_pre
 
