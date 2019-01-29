@@ -53,13 +53,13 @@ def main(sys_args=None):
                         help='Output directory (default=<load name>')
     parser.add_argument('--report-level',
                         type=str,
-                        default='warning',
+                        default='none',
                         help="Make reports for messages at/above level "
                              "('all'|'none'|'info'|'caution'|'warning'|'critical') "
                              "(default='warning')")
     parser.add_argument('--roll-level',
                         type=str,
-                        default='critical',
+                        default='none',
                         help="Make alternate roll suggestions for messages at/above level "
                              "('all'|'none'|'info'|'caution'|'warning'|'critical') "
                              "(default='critical')")
