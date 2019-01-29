@@ -79,7 +79,7 @@ def main(sys_args=None):
 
 def preview_load(load_name, *, outdir=None,
                  report_level='none', roll_level='none', loud=False,
-                 acas=None, obsids=None):
+                 acas=None, obsids=None, is_ORs=None):
     """Do preliminary load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
@@ -93,6 +93,10 @@ def preview_load(load_name, *, outdir=None,
     Instead of reading from a pickle, one can directly provide the catalogs
     and obsids (as a list of ``str``).  In this case the ``load_name`` will
     only be used in the report HTML.
+
+    When reading from a pickle, the ``obsids`` argument can be used to limit
+    the list of obsids being processed.  This is handy for development or
+    for examining just one obsid.
 
     If ``outdir`` is not provided then it will be set to ``load_name``.
 
@@ -109,7 +113,8 @@ def preview_load(load_name, *, outdir=None,
     :param roll_level: level threshold for suggesting alternate rolls
     :param loud: print status information during checking
     :param acas: list of ACATable objects (optional, instead of ``load_name``)
-    :param obsids: list of obsids as str (optional, instead of ``load_name``)
+    :param obsids: list of obsids as str (optional)
+    :param is_ORs: list of is_OR values (for roll options review page)
 
     """
     if acas is None:
@@ -133,6 +138,15 @@ def preview_load(load_name, *, outdir=None,
         # Change instance class ``aca`` to include all the review methods. This is legal!
         ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud, preview_dir=outdir)
         acas.append(aca)
+
+    # Special case when running a set of rolls for one obsid for the roll
+    # options page.  The obsid in this case is actually roll but need to get
+    # the OR/ER status right.  Setting the roll attribute is just a hint for
+    # report processing to use the word "roll" instead of "obsid".
+    if is_ORs:
+        for aca, is_OR in zip(acas, is_ORs):
+            aca._is_OR = is_OR
+            aca.roll = True
 
     # Do the pre-review for all the catalogs
     for aca in acas:
@@ -221,7 +235,9 @@ def get_summary_text(acas):
     lines = []
     for aca, obsid_str in zip(acas, obsid_strs):
         fill = " " * (max_obsid_len - len(obsid_str))
-        line = (f'<a href="#obsid{aca.obsid}">OBSID = {obsid_str}</a>{fill}'
+        # Is this being generated for a roll options report?
+        ident = 'ROLL' if hasattr(aca, 'roll') else 'OBSID'
+        line = (f'<a href="#id{aca.obsid}">{ident} = {obsid_str}</a>{fill}'
                 f' at {aca.date}   '
                 f'{aca.acq_count:.1f} ACQ | {aca.guide_count:.1f} GUI |')
 
@@ -307,7 +323,9 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
     @property
     def is_OR(self):
         """Return ``True`` if obsid corresponds to an OR."""
-        return self.obsid < 38000
+        if not hasattr(self, '_is_OR'):
+            self._is_OR = self.obsid < 38000
+        return self._is_OR
 
     @property
     def is_ER(self):
@@ -364,9 +382,10 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # Make a separate preview page for the roll options
         acas = better_acas
         obsids = [f'{roll:.2f}' for roll in rolls]
+        is_ORs = [aca.obsid < 38000 for aca in acas]
         rolls_dir = self.obsid_dir / 'rolls'
         preview_load(f'Obsid {self.obsid} roll options',
-                     acas=acas, obsids=obsids, outdir=rolls_dir,
+                     acas=acas, obsids=obsids, outdir=rolls_dir, is_ORs=is_ORs,
                      report_level='none', roll_level='none', loud=False)
 
         # Add in a column with summary of messages in roll options e.g.

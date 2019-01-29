@@ -269,7 +269,7 @@ class RollOptimizeMixin:
     def get_better_catalogs(self):
 
         if self.loud:
-            print('Exploring roll options')
+            print('  Exploring roll options')
 
         def improve_metric(n_stars, P2, n_stars_new, P2_new):
             n_stars_mult_x = np.array([2.0, 3.0, 4.0, 5.0])

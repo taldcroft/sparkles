@@ -63,8 +63,8 @@ proseco version: {{proseco_version}}
 
 {% for aca in acas %}
 
-<a name="obsid{{aca.obsid}}"></a>
-<h2> Obsid {{aca.obsid}} at {{aca.date}}</h1>
+<a name="id{{aca.obsid}}"></a>
+<h2> {% if aca.roll %}Roll{% else %}Obsid{% endif %} {{aca.obsid}} at {{aca.date}}</h1>
 {% if aca.context['reports_dir'] %}
 <pre>Reports: <a href="{{aca.context['reports_dir']}}/acq/index.html">Acquisition</a> <a href="{{aca.context['reports_dir']}}/guide/index.html">Guide</a></pre>
 {% endif %}
