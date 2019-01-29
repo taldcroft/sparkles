@@ -43,6 +43,10 @@ span.info {
   color:#000099;
 }
 
+span.monospace {
+  font-family:monospace;
+}
+
 </style>
   </head>
 
@@ -59,14 +63,25 @@ proseco version: {{proseco_version}}
 
 {% for aca in acas %}
 
-<a name="obsid{{aca.obsid}}"></a>
-<h2> Obsid {{aca.obsid}} at {{aca.date}}</h1>
+<a name="id{{aca.obsid}}"></a>
+<h2> {% if aca.roll %}Roll{% else %}Obsid{% endif %} {{aca.obsid}} at {{aca.date}}</h1>
 {% if aca.context['reports_dir'] %}
 <pre>Reports: <a href="{{aca.context['reports_dir']}}/acq/index.html">Acquisition</a> <a href="{{aca.context['reports_dir']}}/guide/index.html">Guide</a></pre>
 {% endif %}
 <table>
   <tr>
-    <td><pre>{{aca.context['text_pre']}}</pre></td>
+    <td>
+      <pre>{{aca.context['text_pre']}}</pre>
+      {% if aca.context['roll_options_table'] %}
+        <span class="monospace">
+        <h3><a href="{{aca.context['roll_options_index']}}">Roll options
+        report</a> (roll_min={{aca.context['roll_min']}}
+        roll_nom={{aca.context['roll_nom']}}
+        roll_max={{aca.context['roll_max']}})</h3>
+        {{aca.context['roll_options_table'] | safe}}
+        <span>
+      {% endif %}
+    </td>
     <td><img src="{{aca.context['catalog_plot'] | safe}}"></td>
   </tr>
 </table>

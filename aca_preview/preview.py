@@ -4,6 +4,7 @@
 """
 Preliminary review of ACA catalogs selected by proseco.
 """
+import io
 import re
 from pathlib import Path
 import pickle
@@ -16,7 +17,6 @@ import numpy as np
 from Quaternion import Quat
 from jinja2 import Template
 from chandra_aca.transform import yagzag_to_pixels, mag_to_count_rate
-from chandra_aca.star_probs import guide_count
 from astropy.table import Column
 
 import proseco
@@ -25,12 +25,12 @@ import proseco.characteristics as CHAR
 import proseco.characteristics_guide as GUIDE
 
 from . import test as aca_preview_test
+from .roll_optimize import RollOptimizeMixin, guide_count
 
 CACHE = {}
 ACA_PREVIEW_VERSION = aca_preview_test(get_version=True)
 PROSECO_VERSION = proseco.test(get_version=True)
 FILEDIR = Path(__file__).parent
-CATEGORIES = ('critical', 'warning', 'caution', 'info')
 
 
 # Fix characteristics compatibility issues between 4.3.x and 4.4+
@@ -53,27 +53,49 @@ def main(sys_args=None):
                         help='Output directory (default=<load name>')
     parser.add_argument('--report-level',
                         type=str,
-                        default='warning',
+                        default='none',
                         help="Make reports for messages at/above level "
                              "('all'|'none'|'info'|'caution'|'warning'|'critical') "
                              "(default='warning')")
+    parser.add_argument('--roll-level',
+                        type=str,
+                        default='none',
+                        help="Make alternate roll suggestions for messages at/above level "
+                             "('all'|'none'|'info'|'caution'|'warning'|'critical') "
+                             "(default='critical')")
+    parser.add_argument('--obsid',
+                        action='append',
+                        help="Process only this obsid (can specify multiple times, default=all")
     parser.add_argument('--quiet',
                         action='store_true',
                         help='Run quietly')
     args = parser.parse_args(sys_args)
 
     preview_load(args.load_name, outdir=args.outdir,
-                 loud=(not args.quiet), report_level=args.report_level)
+                 loud=(not args.quiet), report_level=args.report_level,
+                 roll_level=args.roll_level, obsids=args.obsid)
 
 
-def preview_load(load_name, outdir=None, report_level='none', loud=False):
+def preview_load(load_name, *, outdir=None,
+                 report_level='none', roll_level='none', loud=False,
+                 acas=None, obsids=None, is_ORs=None):
     """Do preliminary load review based on proseco pickle file from ORviewer.
 
-    The ``load_name`` specifies the pickle file.  The following options are tried
-    in this order:
+    The ``load_name`` specifies the pickle file from which the ``ACATable``
+    catalogs and obsids are read (unless ``acas`` and ``obsids`` are explicitly
+    provided).  The following options are tried in this order:
+
     - <load_name> (e.g. 'JAN2119A_proseco.pkl')
     - <load_name>_proseco.pkl (for <load_name> like 'JAN2119A', ORviewer default)
     - <load_name>.pkl
+
+    Instead of reading from a pickle, one can directly provide the catalogs as
+    ``acas`` and ``obsids`` (as a list of ``str``).  In this case the
+    ``load_name`` will only be used in the report HTML.
+
+    When reading from a pickle, the ``obsids`` argument can be used to limit
+    the list of obsids being processed.  This is handy for development or
+    for examining just one obsid.
 
     If ``outdir`` is not provided then it will be set to ``load_name``.
 
@@ -84,21 +106,28 @@ def preview_load(load_name, outdir=None, report_level='none', loud=False):
     default is "none", meaning no reports are generated.  A final option is
     "all" which generates a report for every obsid.
 
-    :param load_name: Name of loads
-    :param outdir: Output directory
+    :param load_name: name of loads
+    :param outdir: output directory
     :param report_level: report level threshold for generating acq and guide report
-    :param loud: Print status information during checking
+    :param roll_level: level threshold for suggesting alternate rolls
+    :param loud: print status information during checking
+    :param acas: list of ACATable objects (optional)
+    :param obsids: list of obsids as str (optional)
+    :param is_ORs: list of is_OR values (for roll options review page)
 
     """
-    if load_name in CACHE:
-        acas_dict = CACHE[load_name]
-    else:
+    if acas is None:
         acas_dict = get_acas(load_name, loud)
-        CACHE[load_name] = acas_dict
+    else:
+        acas_dict = dict(zip(obsids, acas))
+
+    if obsids:
+        acas_dict = {obsid: aca for obsid, aca in acas_dict.items()
+                     if obsid in obsids}
 
     # Make output directory if needed
     if outdir is None:
-        outdir = re.sub(r'(_proseco)?.pkl', '', load_name)
+        outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_aca_preview'
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -109,14 +138,37 @@ def preview_load(load_name, outdir=None, report_level='none', loud=False):
         ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud, preview_dir=outdir)
         acas.append(aca)
 
+    # Special case when running a set of rolls for one obsid for the roll
+    # options page.  The obsid in this case is actually roll but need to get
+    # the OR/ER status right.  Setting the roll attribute is just a hint for
+    # report processing to use the word "roll" instead of "obsid".
+    if is_ORs:
+        for aca, is_OR in zip(acas, is_ORs):
+            aca._is_OR = is_OR
+            aca.roll = True
+
     # Do the pre-review for all the catalogs
     for aca in acas:
         if loud:
             print(f'Processing obsid {aca.obsid}')
 
         aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
-        aca.preview()
-        aca.make_report(report_level)
+        aca.make_starcat_plot()
+        aca.check_catalog()
+
+        # If any aca.messages have category above report level then make report
+        if aca.messages >= report_level:
+            try:
+                aca.make_report()
+            except Exception as err:
+                aca.add_message('critical', text=f'Running make_report() failed: {err}')
+
+        if aca.messages >= roll_level:
+            better_acas, better_stats = aca.get_better_catalogs()
+            if len(better_acas) > 1:
+                aca.make_better_acas_report(better_acas, better_stats)
+
+        aca.context['text_pre'] = aca.get_text_pre()
 
     context = {}
     context['load_name'] = load_name.upper()
@@ -150,7 +202,10 @@ def stylize(text, category):
 def get_acas(load_name, loud=False):
     """Get dict of proseco ACATable pickles for ``load_name``
 
-    :param load_name: load name (see preview_load() doc for details)
+    Note that ``load_name`` can be a Table with columns ``obsid``
+    and ``aca`` (ACATable catalog object).
+
+    :param load_name: load name or Table (see preview_load() doc for details)
     :param loud: print processing information
     """
     filenames = [load_name, f'{load_name}_proseco.pkl', f'{load_name}.pkl']
@@ -182,13 +237,15 @@ def get_summary_text(acas):
     lines = []
     for aca, obsid_str in zip(acas, obsid_strs):
         fill = " " * (max_obsid_len - len(obsid_str))
-        line = (f'<a href="#obsid{aca.obsid}">OBSID = {obsid_str}</a>{fill}'
+        # Is this being generated for a roll options report?
+        ident = 'ROLL' if hasattr(aca, 'roll') else 'OBSID'
+        line = (f'<a href="#id{aca.obsid}">{ident} = {obsid_str}</a>{fill}'
                 f' at {aca.date}   '
                 f'{aca.acq_count:.1f} ACQ | {aca.guide_count:.1f} GUI |')
 
         # Warnings
-        for category in CATEGORIES:
-            msgs = [msg for msg in aca.messages if msg['category'] == category]
+        for category in reversed(MessagesList.categories):
+            msgs = aca.messages == category
             if msgs:
                 text = stylize(f' {category.capitalize()}: {len(msgs)}', category)
                 line += text
@@ -198,7 +255,25 @@ def get_summary_text(acas):
     return '\n'.join(lines)
 
 
-class ACAReviewTable(ACATable):
+class MessagesList(list):
+    categories = ('all', 'info', 'caution', 'warning', 'critical', 'none')
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return [msg for msg in self if msg['category'] == other]
+        else:
+            return super().__eq__(other)
+
+    def __ge__(self, other):
+        if isinstance(other, str):
+            other_idx = self.categories.index(other)
+            return [msg for msg in self
+                    if self.categories.index(msg['category']) >= other_idx]
+        else:
+            return super().__ge__(other)
+
+
+class ACAReviewTable(ACATable, RollOptimizeMixin):
     @classmethod
     def add_review_methods(cls, aca, *, obsid=None, loud=False, preview_dir='.'):
         """Add review methods to ``aca`` object *in-place*.
@@ -214,7 +289,7 @@ class ACAReviewTable(ACATable):
         aca.__class__ = cls
         aca.add_row_col()
         aca.context = {}  # Jinja2 context for output HTML review
-        aca.messages = []  # Warning messages
+        aca.messages = MessagesList()  # Warning messages
         aca.loud = loud
 
         # Input obsid could be a string repr of a number that might have have
@@ -250,31 +325,19 @@ class ACAReviewTable(ACATable):
     @property
     def is_OR(self):
         """Return ``True`` if obsid corresponds to an OR."""
-        return self.obsid < 38000
+        if not hasattr(self, '_is_OR'):
+            self._is_OR = self.obsid < 38000
+        return self._is_OR
 
     @property
     def is_ER(self):
         """Return ``True`` if obsid corresponds to an ER."""
         return not self.is_OR
 
-    def make_report(self, report_level):
-        """Optionally make report for acq and guide.
+    def make_report(self):
+        """Make report for acq and guide.
 
         """
-        if report_level == 'none':
-            return
-
-        if report_level != 'all':
-            categories = ['info', 'caution', 'warning', 'critical']
-            idx = categories.index(report_level)
-            for category in categories[idx:]:
-                msgs = [msg for msg in self.messages if msg['category'] == category]
-                if msgs:
-                    break
-            else:
-                # No messages at or above required level
-                return
-
         if self.loud:
             print(f'  Creating HTML reports for obsid {self.obsid}')
 
@@ -284,7 +347,7 @@ class ACAReviewTable(ACATable):
         # Let the jinja template know this has reports and set the correct
         # relative link from <preview_dir>/index.html to the reports directory
         # containing acq/index.html and guide/index.html files.
-        self.context['reports_dir'] = self.obsid_dir.relative_to(self.preview_dir)
+        self.context['reports_dir'] = self.obsid_dir.relative_to(self.preview_dir).as_posix()
 
     def set_stars_and_mask(self):
         """Set stars attribute for plotting.
@@ -304,13 +367,65 @@ class ACAReviewTable(ACATable):
             acqs.stars = self.stars
             _, acqs.bad_stars = acqs.get_acq_candidates(acqs.stars)
 
+    def make_better_acas_report(self, better_acas, better_stats):
+        """Make a summary table and separate report page for roll options.
+
+        :param better_acas: list of ACATable objects
+        :param better_stats: Table of stats related to ``better_acas``
+        """
+        # Note better_acas includes the originally-planned roll case
+        # as the first row.
+        rolls = [Quat(aca.att).roll for aca in better_acas]
+        better_stats.add_column(Column(rolls, name='roll'), index=0)
+        for name in better_stats.colnames:
+            better_stats[name].info.format = '.2f'
+        self.roll_options_table = better_stats
+
+        # Make a separate preview page for the roll options
+        acas = better_acas
+        obsids = [f'{roll:.2f}' for roll in rolls]
+        is_ORs = [aca.obsid < 38000 for aca in acas]
+        rolls_dir = self.obsid_dir / 'rolls'
+        preview_load(f'Obsid {self.obsid} roll options',
+                     acas=acas, obsids=obsids, outdir=rolls_dir, is_ORs=is_ORs,
+                     report_level='none', roll_level='none', loud=False)
+
+        # Add in a column with summary of messages in roll options e.g.
+        # critical: 2 warning: 1
+        msgs_summaries = []
+        for aca in acas:
+            texts = []
+            for category in reversed(MessagesList.categories):
+                msgs = aca.messages == category
+                if msgs:
+                    text = stylize(f'{category.capitalize()}: {len(msgs)}', category)
+                    texts.append(text)
+            msgs_summaries.append(' '.join(texts))
+        self.roll_options_table['warnings'] = msgs_summaries
+
+        # Set context for HTML output
+        rolls_index = self.obsid_dir.relative_to(self.preview_dir) / 'rolls' / 'index.html'
+        io_html = io.StringIO()
+        self.roll_options_table.write(
+            io_html, format='ascii.html',
+            htmldict={'table_class': 'table-striped',
+                      'raw_html_cols': ['warnings'],
+                      'raw_html_clean_kwargs': {'tags': ['span'],
+                                                'attributes': ['class']}})
+        htmls = [line.strip() for line in io_html.getvalue().splitlines()]
+        htmls = htmls[htmls.index('<table class="table-striped">'):htmls.index('</table>') + 1]
+        self.context['roll_options_table'] = '\n'.join(htmls)
+        self.context['roll_options_index'] = rolls_index.as_posix()
+        for key in ('roll_min', 'roll_max', 'roll_nom'):
+            self.context[key] = f'{self.roll_options_table.meta[key]:.2f}'
+
     def make_starcat_plot(self):
         """Make star catalog plot for this observation.
 
         """
         plotname = f'starcat.png'
         outfile = self.obsid_dir / plotname
-        self.context['catalog_plot'] = outfile.relative_to(self.preview_dir)
+        self.context['catalog_plot'] = outfile.relative_to(self.preview_dir).as_posix()
 
         if outfile.exists():
             return
@@ -331,7 +446,7 @@ class ACAReviewTable(ACATable):
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
         catalog = '\n'.join(self.pformat(max_width=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
-        self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd)
+        self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd, self.is_ER)
 
         message_text = self.get_formatted_messages()
 
@@ -349,8 +464,8 @@ Date: {self.date}
 Probability of acquiring 2 or fewer stars (10^-x): {P2:.2f}
 Acquisition Stars Expected: {self.acq_count:.2f}
 Guide Stars count: {self.guide_count:.2f}
-Predicted Guide CCD temperature (max): {self.t_ccd_guide:.1f}
-Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
+Predicted Guide CCD temperature (max): {self.guides.t_ccd:.1f}
+Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
 
         return text_pre
 
@@ -380,16 +495,6 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}"""
         index = self.colnames.index('zang') + 1
         self.add_column(Column(row, name='row'), index=index)
         self.add_column(Column(col, name='col'), index=index + 1)
-
-    def preview(self):
-        """Prelim review of ``self`` catalog.
-
-        This is based on proseco and (possibly) other available products, e.g. the DOT.
-        """
-        self.make_starcat_plot()
-        self.add_row_col()
-        self.check_catalog()
-        self.context['text_pre'] = self.get_text_pre()
 
     def check_catalog(self):
         """Perform all star catalog checks.
