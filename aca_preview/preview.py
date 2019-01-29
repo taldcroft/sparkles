@@ -17,7 +17,6 @@ import numpy as np
 from Quaternion import Quat
 from jinja2 import Template
 from chandra_aca.transform import yagzag_to_pixels, mag_to_count_rate
-from chandra_aca.star_probs import guide_count
 from astropy.table import Column
 
 import proseco
@@ -26,7 +25,7 @@ import proseco.characteristics as CHAR
 import proseco.characteristics_guide as GUIDE
 
 from . import test as aca_preview_test
-from .roll_optimize import RollOptimizeMixin
+from .roll_optimize import RollOptimizeMixin, guide_count
 
 CACHE = {}
 ACA_PREVIEW_VERSION = aca_preview_test(get_version=True)
@@ -442,7 +441,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
         catalog = '\n'.join(self.pformat(max_width=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
-        self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd)
+        self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd, self.is_ER)
 
         message_text = self.get_formatted_messages()
 
