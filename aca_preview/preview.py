@@ -89,9 +89,9 @@ def preview_load(load_name, *, outdir=None,
     - <load_name>_proseco.pkl (for <load_name> like 'JAN2119A', ORviewer default)
     - <load_name>.pkl
 
-    Instead of reading from a pickle, one can directly provide the catalogs
-    and obsids (as a list of ``str``).  In this case the ``load_name`` will
-    only be used in the report HTML.
+    Instead of reading from a pickle, one can directly provide the catalogs as
+    ``acas`` and ``obsids`` (as a list of ``str``).  In this case the
+    ``load_name`` will only be used in the report HTML.
 
     When reading from a pickle, the ``obsids`` argument can be used to limit
     the list of obsids being processed.  This is handy for development or
@@ -111,7 +111,7 @@ def preview_load(load_name, *, outdir=None,
     :param report_level: report level threshold for generating acq and guide report
     :param roll_level: level threshold for suggesting alternate rolls
     :param loud: print status information during checking
-    :param acas: list of ACATable objects (optional, instead of ``load_name``)
+    :param acas: list of ACATable objects (optional)
     :param obsids: list of obsids as str (optional)
     :param is_ORs: list of is_OR values (for roll options review page)
 
