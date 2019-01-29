@@ -74,7 +74,10 @@ proseco version: {{proseco_version}}
       <pre>{{aca.context['text_pre']}}</pre>
       {% if aca.context['roll_options_table'] %}
         <span class="monospace">
-        <h3><a href="{{aca.context['roll_options_index']}}">Roll options report</a></h3>
+        <h3><a href="{{aca.context['roll_options_index']}}">Roll options
+        report</a> (roll_min={{aca.context['roll_min']}}
+        roll_nom={{aca.context['roll_nom']}}
+        roll_max={{aca.context['roll_max']}})</h3>
         {{aca.context['roll_options_table'] | safe}}
         <span>
       {% endif %}

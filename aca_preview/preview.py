@@ -416,6 +416,8 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         htmls = htmls[htmls.index('<table class="table-striped">'):htmls.index('</table>') + 1]
         self.context['roll_options_table'] = '\n'.join(htmls)
         self.context['roll_options_index'] = rolls_index.as_posix()
+        for key in ('roll_min', 'roll_max', 'roll_nom'):
+            self.context[key] = f'{self.roll_options_table.meta[key]:.2f}'
 
     def make_starcat_plot(self):
         """Make star catalog plot for this observation.

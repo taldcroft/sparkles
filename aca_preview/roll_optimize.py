@@ -321,5 +321,8 @@ class RollOptimizeMixin:
                 better_stats.append((P2_rolled, n_stars_rolled, improvement))
 
         better_stats = Table(rows=better_stats,
-                             names=['P2', 'n_stars', 'improvement'])
+                             names=['P2', 'n_stars', 'improvement'],
+                             meta={'roll_min': roll_min,
+                                   'roll_max': roll_max,
+                                   'roll_nom': roll_nom})
         return better_acas, better_stats
