@@ -344,7 +344,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # Let the jinja template know this has reports and set the correct
         # relative link from <preview_dir>/index.html to the reports directory
         # containing acq/index.html and guide/index.html files.
-        self.context['reports_dir'] = self.obsid_dir.relative_to(self.preview_dir)
+        self.context['reports_dir'] = self.obsid_dir.relative_to(self.preview_dir).as_posix()
 
     def set_stars_and_mask(self):
         """Set stars attribute for plotting.
@@ -412,7 +412,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         htmls = [line.strip() for line in io_html.getvalue().splitlines()]
         htmls = htmls[htmls.index('<table class="table-striped">'):htmls.index('</table>') + 1]
         self.context['roll_options_table'] = '\n'.join(htmls)
-        self.context['roll_options_index'] = rolls_index
+        self.context['roll_options_index'] = rolls_index.as_posix()
 
     def make_starcat_plot(self):
         """Make star catalog plot for this observation.
@@ -420,7 +420,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         """
         plotname = f'starcat.png'
         outfile = self.obsid_dir / plotname
-        self.context['catalog_plot'] = outfile.relative_to(self.preview_dir)
+        self.context['catalog_plot'] = outfile.relative_to(self.preview_dir).as_posix()
 
         if outfile.exists():
             return
