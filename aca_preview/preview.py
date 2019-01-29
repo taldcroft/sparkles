@@ -24,8 +24,11 @@ from proseco.catalog import ACATable
 import proseco.characteristics as CHAR
 import proseco.characteristics_guide as GUIDE
 
+from . import test as aca_preview_test
+
 CACHE = {}
-VERSION = proseco.test(get_version=True)
+ACA_PREVIEW_VERSION = aca_preview_test(get_version=True)
+PROSECO_VERSION = proseco.test(get_version=True)
 FILEDIR = Path(__file__).parent
 CATEGORIES = ('critical', 'warning', 'caution', 'info')
 
@@ -40,7 +43,8 @@ def main(sys_args=None):
     """Command line interface to preview_load()"""
 
     import argparse
-    parser = argparse.ArgumentParser(description='ACA preliminary review tool')
+    parser = argparse.ArgumentParser(
+        description=f'ACA preliminary review tool {ACA_PREVIEW_VERSION}')
     parser.add_argument('load_name',
                         type=str,
                         help='Load name (e.g. JAN2119A) or full file name')
@@ -116,7 +120,8 @@ def preview_load(load_name, outdir=None, report_level='none', loud=False):
 
     context = {}
     context['load_name'] = load_name.upper()
-    context['version'] = VERSION
+    context['proseco_version'] = PROSECO_VERSION
+    context['aca_preview_version'] = ACA_PREVIEW_VERSION
     context['acas'] = acas
     context['summary_text'] = get_summary_text(acas)
 
