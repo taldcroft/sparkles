@@ -127,7 +127,7 @@ def preview_load(load_name, *, outdir=None,
 
     # Make output directory if needed
     if outdir is None:
-        outdir = re.sub(r'(_proseco)?.pkl', '', load_name)
+        outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_aca_preview'
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
