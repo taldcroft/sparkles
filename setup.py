@@ -17,7 +17,7 @@ setup(name='aca_preview',
       zip_safe=False,
       entry_points=entry_points,
       packages=['aca_preview', 'aca_preview.tests'],
-      package_data={'aca_preview': ['index_template*.html']},
+      package_data={'aca_preview': ['index_template*.html', 'pitch_rolldev.csv']},
       tests_require=['pytest'],
       cmdclass=cmdclass,
       )
