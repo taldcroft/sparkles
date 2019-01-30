@@ -8,7 +8,7 @@ import io
 import re
 from pathlib import Path
 import pickle
-from itertools import combinations
+from itertools import combinations, chain
 
 import matplotlib
 matplotlib.use('Agg')
@@ -305,6 +305,16 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             aca.acqs.obsid = num_obsid
             aca.guides.obsid = num_obsid
             aca.fids.obsid = num_obsid
+
+        if 'mag_err' not in aca.colnames:
+            # Add 'mag_err' column after 'mag' using 'mag_err' from guides and acqs
+            mag_errs = {entry['id']: entry['mag_err'] for entry in chain(aca.acqs, aca.guides)}
+            mag_errs = Column([mag_errs.get(id, 0.0) for id in aca['id']], name='mag_err')
+            aca.add_column(mag_errs, index=aca.colnames.index('mag') + 1)
+
+        # Don't want maxmag column
+        if 'maxmag' in aca.colnames:
+            del aca['maxmag']
 
         # Clean up some attributes so acq/guide report summary looks OK.  This should
         # be fixed upstream at some point.
