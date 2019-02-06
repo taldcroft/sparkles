@@ -76,7 +76,7 @@ def main(sys_args=None):
                  roll_level=args.roll_level, obsids=args.obsid)
 
 
-def preview_load(load_name, *, outdir=None,
+def preview_load(load_name=None, *, make_html=True, outdir=None,
                  report_level='none', roll_level='none', loud=False,
                  acas=None, obsids=None, is_ORs=None):
     """Do preliminary load review based on proseco pickle file from ORviewer.
@@ -107,6 +107,7 @@ def preview_load(load_name, *, outdir=None,
     "all" which generates a report for every obsid.
 
     :param load_name: name of loads
+    :param make_html: make HTML output report
     :param outdir: output directory
     :param report_level: report level threshold for generating acq and guide report
     :param roll_level: level threshold for suggesting alternate rolls
@@ -126,16 +127,17 @@ def preview_load(load_name, *, outdir=None,
                      if obsid in obsids}
 
     # Make output directory if needed
-    if outdir is None:
-        outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_aca_preview'
-    outdir = Path(outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
+    if make_html and load_name:
+        if outdir is None:
+            outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_aca_preview'
+        outdir = Path(outdir)
+        outdir.mkdir(parents=True, exist_ok=True)
 
     # Convert dict of ACATable to list of ACAPreviewTable with obsid set correctly
     acas = []
     for obsid, aca in acas_dict.items():
         # Change instance class ``aca`` to include all the review methods. This is legal!
-        ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud, preview_dir=outdir)
+        ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud)
         acas.append(aca)
 
     # Special case when running a set of rolls for one obsid for the roll
@@ -153,39 +155,49 @@ def preview_load(load_name, *, outdir=None,
             print(f'Processing obsid {aca.obsid}')
 
         aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
-        aca.make_starcat_plot()
         aca.check_catalog()
 
-        # If any aca.messages have category above report level then make report
-        if report_level == 'all' or aca.messages >= report_level:
-            try:
-                aca.make_report()
-            except Exception as err:
-                aca.add_message('critical', text=f'Running make_report() failed: {err}')
+        if make_html:
 
-        if roll_level == 'all' or aca.messages >= roll_level:
-            better_acas, better_stats = aca.get_better_catalogs()
-            if len(better_acas) > 1:
-                aca.make_better_acas_report(better_acas, better_stats)
+            # Output directory for the main prelim review index.html and for this obsid.
+            # Note that the obs{aca.obsid} is not flexible because it must match the
+            # convention used in ACATable.make_report().  Oops.
+            aca.preview_dir = Path(outdir)
+            aca.obsid_dir = aca.preview_dir / f'obs{aca.obsid}'
+            aca.obsid_dir.mkdir(parents=True, exist_ok=True)
 
-        aca.context['text_pre'] = aca.get_text_pre()
+            aca.make_starcat_plot()
 
-    context = {}
-    context['load_name'] = load_name.upper()
-    context['proseco_version'] = PROSECO_VERSION
-    context['aca_preview_version'] = ACA_PREVIEW_VERSION
-    context['acas'] = acas
-    context['summary_text'] = get_summary_text(acas)
+            if report_level == 'all' or aca.messages >= report_level:
+                try:
+                    aca.make_report()
+                except Exception as err:
+                    aca.add_message('critical', text=f'Running make_report() failed: {err}')
 
-    template_file = FILEDIR / 'index_template_preview.html'
-    template = Template(open(template_file, 'r').read())
-    out_html = template.render(context)
+            if roll_level == 'all' or aca.messages >= roll_level:
+                better_acas, better_stats = aca.get_better_catalogs()
+                if len(better_acas) > 1:
+                    aca.make_better_acas_report(better_acas, better_stats)
 
-    out_filename = outdir / 'index.html'
-    if loud:
-        print(f'Writing output review file {out_filename}')
-    with open(out_filename, 'w') as fh:
-        fh.write(out_html)
+            aca.context['text_pre'] = aca.get_text_pre()
+
+    if make_html:
+        context = {}
+        context['load_name'] = load_name.upper()
+        context['proseco_version'] = PROSECO_VERSION
+        context['aca_preview_version'] = ACA_PREVIEW_VERSION
+        context['acas'] = acas
+        context['summary_text'] = get_summary_text(acas)
+
+        template_file = FILEDIR / 'index_template_preview.html'
+        template = Template(open(template_file, 'r').read())
+        out_html = template.render(context)
+
+        out_filename = outdir / 'index.html'
+        if loud:
+            print(f'Writing output review file {out_filename}')
+        with open(out_filename, 'w') as fh:
+            fh.write(out_html)
 
 
 def stylize(text, category):
@@ -275,7 +287,7 @@ class MessagesList(list):
 
 class ACAReviewTable(ACATable, RollOptimizeMixin):
     @classmethod
-    def add_review_methods(cls, aca, *, obsid=None, loud=False, preview_dir='.'):
+    def add_review_methods(cls, aca, *, obsid=None, loud=False):
         """Add review methods to ``aca`` object *in-place*.
 
         - Change ``aca.__class__`` to ``cls``
@@ -325,12 +337,15 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             obj.t_ccd = round(obj.t_ccd, 2)
         aca.acqs.man_angle = round(obj.man_angle, 2)
 
-        # Output directory for the main prelim review index.html and for this obsid.
-        # Note that the obs{aca.obsid} is not flexible because it must match the
-        # convention used in ACATable.make_report().  Oops.
-        aca.preview_dir = Path(preview_dir)
-        aca.obsid_dir = aca.preview_dir / f'obs{aca.obsid}'
-        aca.obsid_dir.mkdir(parents=True, exist_ok=True)
+    @property
+    def thumbs_up(self):
+        n_crit_warn = len(self.messages == 'critical') + len(self.messages == 'warning')
+        return n_crit_warn == 0
+
+    @property
+    def thumbs_down(self):
+        n_crit = len(self.messages == 'critical')
+        return n_crit > 0
 
     @property
     def is_OR(self):
