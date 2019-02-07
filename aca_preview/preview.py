@@ -32,7 +32,6 @@ ACA_PREVIEW_VERSION = aca_preview_test(get_version=True)
 PROSECO_VERSION = proseco.test(get_version=True)
 FILEDIR = Path(__file__).parent
 
-
 # Fix characteristics compatibility issues between 4.3.x and 4.4+
 if not hasattr(CHAR, 'CCD'):
     for attr in ('CCD', 'PIX_2_ARC', 'ARC_2_PIX'):
@@ -370,6 +369,16 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
                        report_level=report_level, roll_level=roll_level,
                        load_name=f'Obsid {self.obsid}',
                        loud=False)
+
+    def review_status(self):
+        if self.thumbs_up:
+            status = 1
+        elif self.thumbs_down:
+            status = -1
+        else:
+            status = 0
+
+        return status
 
     @property
     def thumbs_up(self):
