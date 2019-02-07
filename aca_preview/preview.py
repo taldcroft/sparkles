@@ -17,7 +17,7 @@ import numpy as np
 from Quaternion import Quat
 from jinja2 import Template
 from chandra_aca.transform import yagzag_to_pixels, mag_to_count_rate
-from astropy.table import Column
+from astropy.table import Column, Table
 
 import proseco
 from proseco.catalog import ACATable
@@ -160,6 +160,9 @@ def preview_load(load_name=None, *, make_html=True, outdir=None,
         aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
         aca.check_catalog()
 
+        if roll_level == 'all' or aca.messages >= roll_level:
+            aca.get_roll_options()  # sets roll_options, roll_info attributes
+
         if make_html:
 
             # Output directory for the main prelim review index.html and for this obsid.
@@ -177,10 +180,8 @@ def preview_load(load_name=None, *, make_html=True, outdir=None,
                 except Exception as err:
                     aca.add_message('critical', text=f'Running make_report() failed: {err}')
 
-            if roll_level == 'all' or aca.messages >= roll_level:
-                better_acas, better_stats = aca.get_better_catalogs()
-                if len(better_acas) > 1:
-                    aca.make_better_acas_report(better_acas, better_stats)
+            if aca.roll_info:
+                aca.make_roll_options_report()
 
             aca.context['text_pre'] = aca.get_text_pre()
 
@@ -306,6 +307,8 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         aca.context = {}  # Jinja2 context for output HTML review
         aca.messages = MessagesList()  # Warning messages
         aca.loud = loud
+        aca.roll_options = None
+        aca.roll_info = None
 
         # Input obsid could be a string repr of a number that might have have
         # up to 2 decimal points.  This is the case when obsid is taken from the
@@ -395,22 +398,28 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             acqs.stars = self.stars
             _, acqs.bad_stars = acqs.get_acq_candidates(acqs.stars)
 
-    def make_better_acas_report(self, better_acas, better_stats):
+    def make_roll_options_report(self):
         """Make a summary table and separate report page for roll options.
 
         :param better_acas: list of ACATable objects
         :param better_stats: Table of stats related to ``better_acas``
         """
-        # Note better_acas includes the originally-planned roll case
+        # Note self.roll_options includes the originally-planned roll case
         # as the first row.
-        rolls = [Quat(aca.att).roll for aca in better_acas]
-        better_stats.add_column(Column(rolls, name='roll'), index=0)
-        for name in better_stats.colnames:
-            better_stats[name].info.format = '.2f'
-        self.roll_options_table = better_stats
+        opts = self.roll_options.copy()
+        acas = [opt['aca'] for opt in opts]
+        rolls = [Quat(aca.att).roll for aca in acas]
+
+        for roll, opt in zip(rolls, opts):
+            opt['roll'] = roll
+            del opt['aca']
+
+        opts_table = Table(opts, names=['roll', 'P2', 'n_stars', 'improvement'])
+        for name in opts_table.colnames:
+            opts_table[name].info.format = '.2f'
+        self.roll_options_table = opts_table
 
         # Make a separate preview page for the roll options
-        acas = better_acas
         obsids = [f'{roll:.2f}' for roll in rolls]
         is_ORs = [aca.obsid < 38000 for aca in acas]
         rolls_dir = self.obsid_dir / 'rolls'
@@ -445,7 +454,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         self.context['roll_options_table'] = '\n'.join(htmls)
         self.context['roll_options_index'] = rolls_index.as_posix()
         for key in ('roll_min', 'roll_max', 'roll_nom'):
-            self.context[key] = f'{self.roll_options_table.meta[key]:.2f}'
+            self.context[key] = f'{self.roll_info[key]:.2f}'
 
     def make_starcat_plot(self):
         """Make star catalog plot for this observation.

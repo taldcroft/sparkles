@@ -266,7 +266,7 @@ class RollOptimizeMixin:
 
         return sorted(set(better_rolls)), roll_min, roll_nom, roll_max
 
-    def get_better_catalogs(self):
+    def get_roll_options(self):
 
         if self.loud:
             print('  Exploring roll options')
@@ -297,8 +297,10 @@ class RollOptimizeMixin:
         q_att = Quat(self.att)
         q_targ = calc_targ_from_aca(q_att, 0, 0)
 
-        better_acas = [deepcopy(self)]
-        better_stats = [(P2, n_stars, 0.0)]
+        roll_options = [{'aca': deepcopy(self),
+                         'P2': P2,
+                         'n_stars': n_stars,
+                         'improvement': 0.0}]
 
         for better_roll in better_rolls:
             q_targ_roll = Quat([q_targ.ra, q_targ.dec, better_roll])
@@ -317,12 +319,14 @@ class RollOptimizeMixin:
                                          n_stars_rolled, P2_rolled)
 
             if improvement > 0.3:
-                better_acas.append(aca_rolled)
-                better_stats.append((P2_rolled, n_stars_rolled, improvement))
+                roll_option = {'aca': aca_rolled,
+                               'P2': P2_rolled,
+                               'n_stars': n_stars_rolled,
+                               'improvement': improvement}
+                roll_options.append(roll_option)
 
-        better_stats = Table(rows=better_stats,
-                             names=['P2', 'n_stars', 'improvement'],
-                             meta={'roll_min': roll_min,
-                                   'roll_max': roll_max,
-                                   'roll_nom': roll_nom})
-        return better_acas, better_stats
+        self.roll_info = {'roll_min': roll_min,
+                          'roll_max': roll_max,
+                          'roll_nom': roll_nom}
+
+        self.roll_options = roll_options
