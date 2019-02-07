@@ -71,15 +71,15 @@ def main(sys_args=None):
                         help='Run quietly')
     args = parser.parse_args(sys_args)
 
-    preview_load(args.load_name, outdir=args.outdir,
-                 loud=(not args.quiet), report_level=args.report_level,
-                 roll_level=args.roll_level, obsids=args.obsid)
+    run_aca_review(args.load_name, outdir=args.outdir,
+                   loud=(not args.quiet), report_level=args.report_level,
+                   roll_level=args.roll_level, obsids=args.obsid)
 
 
-def preview_load(load_name=None, *, make_html=True, outdir=None,
-                 report_level='none', roll_level='none', loud=False,
-                 acas=None, obsids=None, is_ORs=None):
-    """Do preliminary load review based on proseco pickle file from ORviewer.
+def run_aca_review(load_name=None, *, make_html=True, outdir=None,
+                   report_level='none', roll_level='none', loud=False,
+                   acas=None, obsids=None, is_ORs=None):
+    """Do ACA load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
     catalogs and obsids are read (unless ``acas`` and ``obsids`` are explicitly
@@ -140,7 +140,8 @@ def preview_load(load_name=None, *, make_html=True, outdir=None,
     acas = []
     for obsid, aca in acas_dict.items():
         # Change instance class ``aca`` to include all the review methods. This is legal!
-        ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud)
+        if not hasattr(aca, 'messages'):
+            ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud)
         acas.append(aca)
 
     # Special case when running a set of rolls for one obsid for the roll
@@ -343,6 +344,33 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             obj.t_ccd = round(obj.t_ccd, 2)
         aca.acqs.man_angle = round(obj.man_angle, 2)
 
+    def run_aca_review(self, *, report_dir=None, report_level='none', roll_level='none'):
+        """Do aca review based for this catalog
+
+        The ``report_level`` arg specifies the message category at which the full
+        HTML report for guide and acquisition will be generated for obsids with at
+        least one message at or above that level.  The options correspond to
+        standard categories "info", "caution", "warning", and "critical".  The
+        default is "none", meaning no reports are generated.  A final option is
+        "all" which generates a report for every obsid.
+
+        :param report_dir: output directory for report
+        :param report_level: report level threshold for generating acq and guide report
+        :param roll_level: level threshold for suggesting alternate rolls
+
+        :returns: ACAReviewTable object
+        """
+        acas = [self]
+        obsids = [self.obsid]  # NEED OBSID or is_OR from ORviewer!
+
+        make_html = (report_dir is not None)
+
+        # Do aca review checks and update acas[0] in place
+        run_aca_review(acas=acas, obsids=obsids, make_html=make_html, outdir=report_dir,
+                       report_level=report_level, roll_level=roll_level,
+                       load_name=f'Obsid {self.obsid}',
+                       loud=False)
+
     @property
     def thumbs_up(self):
         n_crit_warn = len(self.messages == 'critical') + len(self.messages == 'warning')
@@ -423,9 +451,9 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         obsids = [f'{roll:.2f}' for roll in rolls]
         is_ORs = [aca.obsid < 38000 for aca in acas]
         rolls_dir = self.obsid_dir / 'rolls'
-        preview_load(f'Obsid {self.obsid} roll options',
-                     acas=acas, obsids=obsids, outdir=rolls_dir, is_ORs=is_ORs,
-                     report_level='none', roll_level='none', loud=False)
+        run_aca_review(f'Obsid {self.obsid} roll options',
+                       acas=acas, obsids=obsids, outdir=rolls_dir, is_ORs=is_ORs,
+                       report_level='none', roll_level='none', loud=False)
 
         # Add in a column with summary of messages in roll options e.g.
         # critical: 2 warning: 1
