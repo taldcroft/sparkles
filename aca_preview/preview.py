@@ -127,8 +127,11 @@ def preview_load(load_name=None, *, make_html=True, outdir=None,
                      if obsid in obsids}
 
     # Make output directory if needed
-    if make_html and load_name:
+    if make_html:
+        # Generate outdir from load_name if necessary
         if outdir is None:
+            if not load_name:
+                raise ValueError('load_name must be provided if outdir is not specified')
             outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_aca_preview'
         outdir = Path(outdir)
         outdir.mkdir(parents=True, exist_ok=True)
