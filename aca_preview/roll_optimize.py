@@ -7,6 +7,7 @@ Roll optimization during preliminary review of ACA catalogs.
 from copy import deepcopy
 from pathlib import Path
 import numpy as np
+import warnings
 
 from astropy.table import Table, vstack
 from chandra_aca.star_probs import acq_success_prob
@@ -270,6 +271,10 @@ class RollOptimizeMixin:
 
         if self.loud:
             print('  Exploring roll options')
+
+        if self.roll_options is not None:
+            warnings.warn('roll_options already available, not re-computing')
+            return
 
         def improve_metric(n_stars, P2, n_stars_new, P2_new):
             n_stars_mult_x = np.array([2.0, 3.0, 4.0, 5.0])

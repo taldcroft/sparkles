@@ -138,9 +138,9 @@ def run_aca_review(load_name=None, *, make_html=True, outdir=None,
     # Convert dict of ACATable to list of ACAPreviewTable with obsid set correctly
     acas = []
     for obsid, aca in acas_dict.items():
-        # Change instance class ``aca`` to include all the review methods. This is legal!
-        if not hasattr(aca, 'messages'):
-            ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud)
+        # Change instance class ``aca`` to include all the review methods. This is legal
+        # but just a temporary hack.
+        ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud)
         acas.append(aca)
 
     # Special case when running a set of rolls for one obsid for the roll
@@ -292,7 +292,7 @@ class MessagesList(list):
 class ACAReviewTable(ACATable, RollOptimizeMixin):
     @classmethod
     def add_review_methods(cls, aca, *, obsid=None, loud=False):
-        """Add review methods to ``aca`` object *in-place*.
+        """Init review methods and attrs in ``aca`` object *in-place*.
 
         - Change ``aca.__class__`` to ``cls``
         - Add ``context`` and ``messages`` properties.
@@ -333,15 +333,6 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # Don't want maxmag column
         if 'maxmag' in aca.colnames:
             del aca['maxmag']
-
-        # Clean up some attributes so acq/guide report summary looks OK.  This should
-        # be fixed upstream at some point.
-        for obj in (aca.acqs, aca.guides):
-            obj.att = [round(val, 6) for val in Quat(obj.att).equatorial]
-            obj.dither.y = round(obj.dither.y, 2)
-            obj.dither.z = round(obj.dither.z, 2)
-            obj.t_ccd = round(obj.t_ccd, 2)
-        aca.acqs.man_angle = round(obj.man_angle, 2)
 
     def run_aca_review(self, *, report_dir=None, report_level='none', roll_level='none'):
         """Do aca review based for this catalog
@@ -443,7 +434,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         """
         # Note self.roll_options includes the originally-planned roll case
         # as the first row.
-        opts = self.roll_options.copy()
+        opts = [opt.copy() for opt in self.roll_options]
         acas = [opt['aca'] for opt in opts]
         rolls = [Quat(aca.att).roll for aca in acas]
 
