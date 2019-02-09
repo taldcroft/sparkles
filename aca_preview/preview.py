@@ -75,9 +75,9 @@ def main(sys_args=None):
                    roll_level=args.roll_level, obsids=args.obsid)
 
 
-def run_aca_review(load_name=None, *, make_html=True, outdir=None,
+def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
                    report_level='none', roll_level='none', loud=False,
-                   acas=None, obsids=None, is_ORs=None):
+                   obsids=None, is_ORs=None):
     """Do ACA load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
@@ -89,8 +89,8 @@ def run_aca_review(load_name=None, *, make_html=True, outdir=None,
     - <load_name>.pkl
 
     Instead of reading from a pickle, one can directly provide the catalogs as
-    ``acas`` and ``obsids`` (as a list of ``str``).  In this case the
-    ``load_name`` will only be used in the report HTML.
+    ``acas``.  In this case the ``load_name`` will only be used in the report
+    HTML.
 
     When reading from a pickle, the ``obsids`` argument can be used to limit
     the list of obsids being processed.  This is handy for development or
@@ -106,24 +106,21 @@ def run_aca_review(load_name=None, *, make_html=True, outdir=None,
     "all" which generates a report for every obsid.
 
     :param load_name: name of loads
+    :param acas: list of ACAReviewTable objects (optional)
     :param make_html: make HTML output report
     :param outdir: output directory
     :param report_level: report level threshold for generating acq and guide report
     :param roll_level: level threshold for suggesting alternate rolls
     :param loud: print status information during checking
-    :param acas: list of ACATable objects (optional)
-    :param obsids: list of obsids as str (optional)
+    :param obsids: list of obsids for selecting a subset for review (mostly for debug)
     :param is_ORs: list of is_OR values (for roll options review page)
 
     """
     if acas is None:
-        acas_dict = get_acas(load_name, loud)
-    else:
-        acas_dict = dict(zip(obsids, acas))
+        acas = get_acas_from_pickle(load_name, loud)
 
     if obsids:
-        acas_dict = {obsid: aca for obsid, aca in acas_dict.items()
-                     if obsid in obsids}
+        acas = [aca for aca in acas if aca.obsid in obsids]
 
     # Make output directory if needed
     if make_html:
@@ -134,14 +131,6 @@ def run_aca_review(load_name=None, *, make_html=True, outdir=None,
             outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_aca_preview'
         outdir = Path(outdir)
         outdir.mkdir(parents=True, exist_ok=True)
-
-    # Convert dict of ACATable to list of ACAPreviewTable with obsid set correctly
-    acas = []
-    for obsid, aca in acas_dict.items():
-        # Change instance class ``aca`` to include all the review methods. This is legal
-        # but just a temporary hack.
-        ACAReviewTable.add_review_methods(aca, obsid=obsid, loud=loud)
-        acas.append(aca)
 
     # Special case when running a set of rolls for one obsid for the roll
     # options page.  The obsid in this case is actually roll but need to get
@@ -156,6 +145,9 @@ def run_aca_review(load_name=None, *, make_html=True, outdir=None,
     for aca in acas:
         if loud:
             print(f'Processing obsid {aca.obsid}')
+
+        aca.messages.clear()
+        aca.context.clear()
 
         aca.set_stars_and_mask()  # Not stored in pickle, need manual restoration
         aca.check_catalog()
@@ -215,7 +207,7 @@ def stylize(text, category):
     return out
 
 
-def get_acas(load_name, loud=False):
+def get_acas_from_pickle(load_name, loud=False):
     """Get dict of proseco ACATable pickles for ``load_name``
 
     Note that ``load_name`` can be a Table with columns ``obsid``
@@ -230,9 +222,14 @@ def get_acas(load_name, loud=False):
         if pth.exists() and pth.is_file() and pth.suffix == '.pkl':
             if loud:
                 print(f'Reading pickle file {filename}')
-            acas = pickle.load(open(filename, 'rb'))
-            return acas
-    raise FileNotFoundError(f'no matching pickle file {filenames}')
+            acas_dict = pickle.load(open(filename, 'rb'))
+            break
+    else:
+        raise FileNotFoundError(f'no matching pickle file {filenames}')
+
+    acas = [ACAReviewTable(aca, obsid=obsid, loud=loud)
+            for obsid, aca in acas_dict.items()]
+    return acas
 
 
 def get_summary_text(acas):
@@ -290,8 +287,9 @@ class MessagesList(list):
 
 
 class ACAReviewTable(ACATable, RollOptimizeMixin):
-    @classmethod
-    def add_review_methods(cls, aca, *, obsid=None, loud=False):
+    # def add_review_methods(cls, aca, *, obsid=None, loud=False):
+
+    def __init__(self, *args, **kwargs):
         """Init review methods and attrs in ``aca`` object *in-place*.
 
         - Change ``aca.__class__`` to ``cls``
@@ -302,13 +300,23 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         :param loud: print processing status info (default=False)
 
         """
-        aca.__class__ = cls
-        aca.add_row_col()
-        aca.context = {}  # Jinja2 context for output HTML review
-        aca.messages = MessagesList()  # Warning messages
-        aca.loud = loud
-        aca.roll_options = None
-        aca.roll_info = None
+        # if data is None:
+        #    raise ValueError(f'data arg must be set to initialize {self.__class__.__name__}')
+
+        obsid = kwargs.pop('obsid', None)
+        loud = kwargs.pop('loud', False)
+
+        # Make a copy of input aca table along with a deepcopy of its meta.
+        # TO DO: improve efficiency here by avoiding deepcopy.
+        super().__init__(*args, **kwargs)
+
+        self.add_row_col()
+
+        self.context = {}  # Jinja2 context for output HTML review
+        self.messages = MessagesList()  # Warning messages
+        self.loud = loud
+        self.roll_options = None
+        self.roll_info = None
 
         # Input obsid could be a string repr of a number that might have have
         # up to 2 decimal points.  This is the case when obsid is taken from the
@@ -319,20 +327,20 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             i_obsid = int(f_obsid)
             num_obsid = i_obsid if (i_obsid == f_obsid) else f_obsid
 
-            aca.obsid = num_obsid
-            aca.acqs.obsid = num_obsid
-            aca.guides.obsid = num_obsid
-            aca.fids.obsid = num_obsid
+            self.obsid = num_obsid
+            self.acqs.obsid = num_obsid
+            self.guides.obsid = num_obsid
+            self.fids.obsid = num_obsid
 
-        if 'mag_err' not in aca.colnames:
+        if 'mag_err' not in self.colnames:
             # Add 'mag_err' column after 'mag' using 'mag_err' from guides and acqs
-            mag_errs = {entry['id']: entry['mag_err'] for entry in chain(aca.acqs, aca.guides)}
-            mag_errs = Column([mag_errs.get(id, 0.0) for id in aca['id']], name='mag_err')
-            aca.add_column(mag_errs, index=aca.colnames.index('mag') + 1)
+            mag_errs = {entry['id']: entry['mag_err'] for entry in chain(self.acqs, self.guides)}
+            mag_errs = Column([mag_errs.get(id, 0.0) for id in self['id']], name='mag_err')
+            self.add_column(mag_errs, index=self.colnames.index('mag') + 1)
 
         # Don't want maxmag column
-        if 'maxmag' in aca.colnames:
-            del aca['maxmag']
+        if 'maxmag' in self.colnames:
+            del self['maxmag']
 
     def run_aca_review(self, *, report_dir=None, report_level='none', roll_level='none'):
         """Do aca review based for this catalog
@@ -351,12 +359,11 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         :returns: ACAReviewTable object
         """
         acas = [self]
-        obsids = [self.obsid]  # NEED OBSID or is_OR from ORviewer!
 
         make_html = (report_dir is not None)
 
         # Do aca review checks and update acas[0] in place
-        run_aca_review(acas=acas, obsids=obsids, make_html=make_html, outdir=report_dir,
+        run_aca_review(acas=acas, make_html=make_html, outdir=report_dir,
                        report_level=report_level, roll_level=roll_level,
                        load_name=f'Obsid {self.obsid}',
                        loud=False)
@@ -435,8 +442,9 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # Note self.roll_options includes the originally-planned roll case
         # as the first row.
         opts = [opt.copy() for opt in self.roll_options]
-        acas = [opt['aca'] for opt in opts]
-        rolls = [Quat(aca.att).roll for aca in acas]
+        rolls = [Quat(opt['aca'].att).roll for opt in self.roll_options]
+        acas = [ACAReviewTable(opt['aca'], obsid=roll)
+                for opt, roll in zip(opts, rolls)]
 
         for roll, opt in zip(rolls, opts):
             opt['roll'] = roll
@@ -448,11 +456,10 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         self.roll_options_table = opts_table
 
         # Make a separate preview page for the roll options
-        obsids = [f'{roll:.2f}' for roll in rolls]
         is_ORs = [aca.obsid < 38000 for aca in acas]
         rolls_dir = self.obsid_dir / 'rolls'
         run_aca_review(f'Obsid {self.obsid} roll options',
-                       acas=acas, obsids=obsids, outdir=rolls_dir, is_ORs=is_ORs,
+                       acas=acas, outdir=rolls_dir, is_ORs=is_ORs,
                        report_level='none', roll_level='none', loud=False)
 
         # Add in a column with summary of messages in roll options e.g.
