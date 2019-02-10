@@ -12,7 +12,7 @@ def test_check_P2():
     stars = StarsTable.empty()
     stars.add_fake_constellation(n_stars=3, mag=10.25)
     aca = get_aca_catalog(**STD_INFO, stars=stars, dark=DARK40)
-    ACAReviewTable.add_review_methods(aca)
+    aca = ACAReviewTable(aca)
 
     # Check P2 for an OR (default obsid=0)
     aca.check_acq_p2()
@@ -26,7 +26,7 @@ def test_check_P2():
     stars.add_fake_constellation(n_stars=5, mag=9.5)
     aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), stars=stars, dark=DARK40,
                           raise_exc=True)
-    ACAReviewTable.add_review_methods(aca)
+    aca = ACAReviewTable(aca)
     aca.obsid = 50000
     aca.check_acq_p2()
     assert len(aca.messages) == 1
@@ -41,7 +41,7 @@ def test_enough_guide():
     stars.add_fake_constellation(n_stars=5, mag=8.0)
     aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), stars=stars, dark=DARK40,
                           raise_exc=True)
-    ACAReviewTable.add_review_methods(aca)
+    aca = ACAReviewTable(aca)
     aca.obsid = 50000
     aca.check_enough_guide_for_ers()
     assert len(aca.messages) == 1
@@ -56,7 +56,7 @@ def test_bright_guide():
     stars.add_fake_constellation(n_stars=8, mag=9.5)
     aca = get_aca_catalog(**mod_std_info(obsid=50000, n_fid=0, n_guide=8), stars=stars, dark=DARK40,
                           raise_exc=True)
-    ACAReviewTable.add_review_methods(aca)
+    aca = ACAReviewTable(aca)
     aca.check_bright_guide_for_ers()
     assert len(aca.messages) == 1
     msg = aca.messages[0]
@@ -71,7 +71,7 @@ def test_pos_err_on_guide():
     stars.add_fake_star(id=100, yang=100, zang=-200, POS_ERR=2500, mag=8.0)
     stars.add_fake_star(id=101, yang=0, zang=500, mag=8.0)
     aca = get_aca_catalog(**mod_std_info(n_fid=0), stars=stars, dark=DARK40, raise_exc=True)
-    ACAReviewTable.add_review_methods(aca)
+    aca = ACAReviewTable(aca)
     aca.check_pos_err_guide(aca.guides.get_id(100))
     assert len(aca.messages) == 1
     msg = aca.messages[0]
@@ -94,7 +94,7 @@ def test_imposters_on_guide():
     dark_with_badpix.aca[101, -200] = cnt * 0.1
     aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), stars=stars, dark=dark_with_badpix,
                           raise_exc=True)
-    ACAReviewTable.add_review_methods(aca)
+    aca = ACAReviewTable(aca)
     aca.check_imposters_guide(aca.guides.get_id(110))
     assert len(aca.messages) == 1
     msg = aca.messages[0]
@@ -109,7 +109,7 @@ def test_too_bright_guide_magerr():
     stars.add_fake_star(id=100, yang=100, zang=-200, mag=6.0, mag_err=0.11, MAG_ACA_ERR=10)
     stars.add_fake_star(id=101, yang=0, zang=500, mag=8.0)
     aca = get_aca_catalog(**mod_std_info(n_fid=0), stars=stars, dark=DARK40, raise_exc=True)
-    ACAReviewTable.add_review_methods(aca)
+    aca = ACAReviewTable(aca)
     aca.check_too_bright_guide(aca.guides.get_id(100))
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
@@ -123,7 +123,7 @@ def test_too_bright_guide_mag_aca_err():
     stars.add_fake_star(id=100, yang=100, zang=-200, mag=6.0, mag_err=0.02, MAG_ACA_ERR=0)
     stars.add_fake_star(id=101, yang=0, zang=500, mag=8.0)
     aca = get_aca_catalog(**mod_std_info(n_fid=0), stars=stars, dark=DARK40, raise_exc=True)
-    ACAReviewTable.add_review_methods(aca)
+    aca = ACAReviewTable(aca)
     aca.check_too_bright_guide(aca.guides.get_id(100))
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
