@@ -122,6 +122,9 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
     if obsids:
         acas = [aca for aca in acas if aca.obsid in obsids]
 
+    if not acas:
+        raise ValueError('no catalogs founds (check obsid filtering?)')
+
     # Make output directory if needed
     if make_html:
         # Generate outdir from load_name if necessary
@@ -143,6 +146,9 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
 
     # Do the pre-review for all the catalogs
     for aca in acas:
+        if not isinstance(aca, ACAReviewTable):
+            raise TypeError('input catalog for review must be an ACAReviewTable')
+
         if loud:
             print(f'Processing obsid {aca.obsid}')
 
