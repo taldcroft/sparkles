@@ -24,10 +24,9 @@ def test_check_P2():
     # Check P2 constructed for an ER with stars intended to have P2 > 2 and < 3
     stars = StarsTable.empty()
     stars.add_fake_constellation(n_stars=5, mag=9.5)
-    aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), stars=stars, dark=DARK40,
+    aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8, obsid=50000), stars=stars, dark=DARK40,
                           raise_exc=True)
     aca = ACAReviewTable(aca)
-    aca.obsid = 50000
     aca.check_acq_p2()
     assert len(aca.messages) == 1
     msg = aca.messages[0]
@@ -41,27 +40,28 @@ def test_guide_count_er():
     # This configuration should have not enough bright stars
     stars = StarsTable.empty()
     stars.add_fake_constellation(n_stars=8, mag=9.5)
-    aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), stars=stars, dark=DARK40,
+    aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8, obsid=50000),
+                          stars=stars, dark=DARK40,
                           raise_exc=True)
     aca = ACAReviewTable(aca)
-    aca.obsid = 50000
     aca.check_guide_count()
     assert len(aca.messages) == 1
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
-    assert 'ER guide count' in msg['text']
+    assert 'ER count of 9th mag guide stars 0.00 < 3.0' in msg['text']
 
     # This configuration should have not enough stars overall
     stars = StarsTable.empty()
     stars.add_fake_constellation(n_stars=3, mag=[8.5, 8.5, 8.5])
-    aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), stars=stars, dark=DARK40,
+    aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8, obsid=50000),
+                          stars=stars, dark=DARK40,
                           raise_exc=True)
-    ACAReviewTable.add_review_methods(aca, obsid=50000)
+    aca = ACAReviewTable(aca)
     aca.check_guide_count()
     assert len(aca.messages) == 1
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
-    assert 'Guide count' in msg['text']
+    assert 'ER count of guide stars 3.00 < 6.0' in msg['text']
 
     # And this configuration should have about the bare minumum (of course better
     # to do this with programmatic instead of fixed checks... TODO)
@@ -78,15 +78,14 @@ def test_guide_count_or():
     """Test the check that an OR has enough fractional guide stars by guide_count"""
     stars = StarsTable.empty()
     stars.add_fake_constellation(n_stars=5, mag=[7.0, 7.0, 10.3, 10.3, 10.3])
-    aca = get_aca_catalog(**mod_std_info(n_fid=3, n_guide=5), stars=stars, dark=DARK40,
+    aca = get_aca_catalog(**mod_std_info(n_fid=3, n_guide=5, obsid=1), stars=stars, dark=DARK40,
                           raise_exc=True)
     aca = ACAReviewTable(aca)
-    aca.obsid = 1
     aca.check_guide_count()
     assert len(aca.messages) == 1
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
-    assert 'Guide count' in msg['text']
+    assert 'OR count of guide stars 2.00 < 4.0' in msg['text']
 
 
 def test_pos_err_on_guide():

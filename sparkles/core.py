@@ -715,16 +715,17 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         """Check for sufficient guide star fractional count
 
         """
+        obs_type = 'ER' if self.is_ER else 'OR'
         if self.is_ER and self.guide_count_9th < 3.0:
             self.add_message(
                 'critical',
-                f'ER guide count: only {self.guide_count_9th} bright stars for mag')
-        obs_type = 'OR' if self.is_OR else 'ER'
+                f'{obs_type} count of 9th mag guide stars {self.guide_count_9th:.2f} < 3.0')
+
         count_lim = 4.0 if self.is_OR else 6.0
         if self.guide_count < count_lim:
             self.add_message(
                 'critical',
-                f'Guide count: {self.guide_count} < {count_lim} for {obs_type}')
+                f'{obs_type} count of guide stars {self.guide_count:.2f} < {count_lim}')
 
     def check_pos_err_guide(self, star):
         """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
