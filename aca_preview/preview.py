@@ -183,6 +183,7 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
 
             aca.context['text_pre'] = aca.get_text_pre()
 
+    # noinspection PyDictCreation
     if make_html:
         context = {}
         context['load_name'] = load_name.upper()
@@ -323,6 +324,12 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         self.loud = loud
         self.roll_options = None
         self.roll_info = None
+        self.preview_dir = None
+        self.obsid_dir = None
+        self.roll_options_table = None
+        self.acq_count = None
+        self.guide_count = None
+        self._is_OR = None
 
         # Input obsid could be a string repr of a number that might have have
         # up to 2 decimal points.  This is the case when obsid is taken from the
@@ -442,8 +449,6 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
     def make_roll_options_report(self):
         """Make a summary table and separate report page for roll options.
 
-        :param better_acas: list of ACATable objects
-        :param better_stats: Table of stats related to ``better_acas``
         """
         # Note self.roll_options includes the originally-planned roll case
         # as the first row.
