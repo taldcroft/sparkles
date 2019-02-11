@@ -815,6 +815,6 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
                 f'Guide star {agasc_id} < 6.1. Double check selection.', idx=idx)
 
 
-# Run from source ``python -m aca_preview.preview <load_name> [options]``
+# Run from source ``python -m sparkles.preview <load_name> [options]``
 if __name__ == '__main__':
     main()

@@ -1,4 +1,4 @@
-from aca_preview import __version__
+from sparkles import __version__
 
 from setuptools import setup
 
@@ -7,17 +7,17 @@ try:
 except ImportError:
     cmdclass = {}
 
-entry_points = {'console_scripts': ['aca_preview=aca_preview.preview:main']}
+entry_points = {'console_scripts': ['sparkles=sparkles.preview:main']}
 
-setup(name='aca_preview',
+setup(name='sparkles',
       author='Tom Aldcroft',
       description='ACA prelim products review',
       author_email='taldcroft@cfa.harvard.edu',
       version=__version__,
       zip_safe=False,
       entry_points=entry_points,
-      packages=['aca_preview', 'aca_preview.tests'],
-      package_data={'aca_preview': ['index_template*.html', 'pitch_rolldev.csv']},
+      packages=['sparkles', 'sparkles.tests'],
+      package_data={'sparkles': ['index_template*.html', 'pitch_rolldev.csv']},
       tests_require=['pytest'],
       cmdclass=cmdclass,
       )
