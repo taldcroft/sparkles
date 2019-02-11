@@ -404,7 +404,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
     @property
     def is_OR(self):
         """Return ``True`` if obsid corresponds to an OR."""
-        if not hasattr(self, '_is_OR'):
+        if self._is_OR is None:
             self._is_OR = self.obsid < 38000
         return self._is_OR
 
