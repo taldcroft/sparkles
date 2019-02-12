@@ -148,8 +148,18 @@ class RollOptimizeMixin:
         # Take the union of better stars and return the indexes
         return sorted(set(better_guide_idxs) | set(better_acq_idxs))
 
-    def get_better_rolls(self, cand_idxs, roll_nom=None, roll_dev=None,
-                         y_off=0, z_off=0, d_roll=0.25):
+    def _calc_targ_from_aca(self, q_att, y_off, z_off):
+        """Wrapper around calc_tar_from_aca that is a no-op for ERs"""
+        q_out = calc_targ_from_aca(q_att, y_off, z_off) if self.is_OR else q_att
+        return q_out
+
+    def _calc_aca_from_targ(self, q_att, y_off, z_off):
+        """Wrapper around calc_aca_from_targ that is a no-op for ERs"""
+        q_out = calc_aca_from_targ(q_att, y_off, z_off) if self.is_OR else q_att
+        return q_out
+
+    def get_roll_intervals(self, cand_idxs, roll_nom=None, roll_dev=None,
+                           y_off=0, z_off=0, d_roll=0.25):
         """Find a list of rolls that might substantially improve guide or acq catalogs.
         If ``roll_nom`` is not specified then an approximate value is computed
         via Ska.Sun for the catalog ``date``.  if ``roll_dev`` (max allowed
@@ -179,10 +189,15 @@ class RollOptimizeMixin:
 
         def get_ids_list(roll_offsets):
             ids_list = []
-            q_targ = calc_targ_from_aca(q_att, y_off, z_off)
+            # Get the target attitude to roll about from ACA attitude.  For ERs this returns q_att.
+            q_targ = self._calc_targ_from_aca(q_att, y_off, z_off)
+
             for ii, roll_offset in enumerate(roll_offsets):
                 q_targ_roll = Quat([q_targ.ra, q_targ.dec, q_targ.roll + roll_offset])
-                q_att_roll = calc_aca_from_targ(q_targ_roll, y_off, z_off)
+                # Transform back to ACA pointing (for ERs this is just q_targ_roll).
+                q_att_roll = self._calc_aca_from_targ(q_targ_roll, y_off, z_off)
+
+                # Get yag/zag row/col for candidates
                 yag, zag = radec_to_yagzag(cands['ra'], cands['dec'], q_att_roll)
                 row, col = yagzag_to_pixels(yag, zag, allow_bad=True, pix_zero_loc='edge')
 
