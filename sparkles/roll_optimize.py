@@ -128,15 +128,7 @@ class RollOptimizeMixin:
         # Find potential acq stars that are noticably better than worst acq
         # star via the p_acq_model metric, defined as p_acq is at least 0.3
         # better.
-        acq_ok = ((stars['CLASS'] == 0) &
-                  (stars['mag'] > 5.9) &
-                  (stars['mag'] < 11.0) &
-                  (~np.isclose(stars['COLOR1'], 0.7)) &
-                  (stars['mag_err'] < 1.0) &  # Mag err < 1.0 mag
-                  (stars['ASPQ1'] < 40) &  # Less than 2 arcsec offset from nearby spoiler
-                  (stars['ASPQ2'] == 0) &  # Proper motion less than 0.5 arcsec/yr
-                  (stars['POS_ERR'] < 3000) &  # Position error < 3.0 arcsec
-                  ((stars['VAR'] == -9999) | (stars['VAR'] == 5)))  # Not known to vary > 0.2 mag
+        acq_ok = self.acqs.get_candidates_mask(stars)
         idxs = np.flatnonzero(sp_ok & acq_ok)
         p_acqs = acq_success_prob(date=self.acqs.date, t_ccd=self.acqs.t_ccd,
                                   mag=stars['mag'][idxs], color=stars['COLOR1'][idxs],
@@ -147,15 +139,7 @@ class RollOptimizeMixin:
 
         # Find potential guide stars that are noticably better than worst guide
         # star, defined as being at least 0.2 mag brighter.
-        guide_ok = ((stars['CLASS'] == 0) &
-                    (stars['mag'] > 5.9) &
-                    (stars['mag'] < 10.3) &
-                    (stars['mag_err'] < 1.0) &  # Mag err < 1.0 mag
-                    (stars['ASPQ1'] < 20) &  # Less than 1 arcsec offset from nearby spoiler
-                    (stars['ASPQ2'] == 0) &  # Proper motion less than 0.5 arcsec/yr
-                    (stars['POS_ERR'] < 3000) &  # Position error < 3.0 arcsec
-                    ((stars['VAR'] == -9999) | (stars['VAR'] == 5)))  # Not known to vary > 0.2 mag
-
+        guide_ok = self.guides.get_candidates_mask(stars)
         idxs = np.flatnonzero(sp_ok & guide_ok)
         worst_mag = np.max(self.guides['mag'])
         ok = stars['mag'][idxs] < worst_mag - 0.2
