@@ -33,9 +33,7 @@ def test_review_catalog(tmpdir):
          'idx': 7,
          'text': 'Guide star imposter offset 2.6, limit 2.5 arcsec'},
         {'category': 'critical', 'text': 'P2: 2.84 less than 3.0 for ER'},
-        {'category': 'critical',
-         'text': 'ER bright stars: only 2 stars brighter than 9.0'},
-        {'category': 'critical', 'text': 'ER guide stars: only 7 stars'}]
+        {'category': 'critical', 'text': 'ER count of 9th mag guide stars 1.57 < 3.0'}]
 
     assert acar.roll_options is None
 
@@ -45,9 +43,7 @@ def test_review_catalog(tmpdir):
          'idx': 7,
          'text': 'Less than 2.5 pix edge margin row lim -495.4 val -495.0 delta 0.4'},
         {'category': 'critical', 'text': 'P2: 2.84 less than 3.0 for ER'},
-        {'category': 'critical',
-         'text': 'ER bright stars: only 2 stars brighter than 9.0'},
-        {'category': 'critical', 'text': 'ER guide stars: only 7 stars'}]
+        {'category': 'critical', 'text': 'ER count of 9th mag guide stars 1.57 < 3.0'}]
 
     assert acar.review_status() == -1
 

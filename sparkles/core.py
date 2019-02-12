@@ -323,7 +323,6 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         self.obsid_dir = None
         self.roll_options_table = None
         self.acq_count = None
-        self.guide_count = None
         self._is_OR = None
 
         # Input obsid could be a string repr of a number that might have have
@@ -339,6 +338,11 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             self.acqs.obsid = num_obsid
             self.guides.obsid = num_obsid
             self.fids.obsid = num_obsid
+
+        # Compute guide count once for the record
+        self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd)
+        if self.is_ER:
+            self.guide_count_9th = guide_count(self.guides['mag'], self.guides.t_ccd, self.is_ER)
 
         if 'mag_err' not in self.colnames:
             # Add 'mag_err' column after 'mag' using 'mag_err' from guides and acqs
@@ -517,7 +521,6 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
         catalog = '\n'.join(self.pformat(max_width=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
-        self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd, self.is_ER)
 
         message_text = self.get_formatted_messages()
 
@@ -581,8 +584,7 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
 
         self.check_guide_geometry()
         self.check_acq_p2()
-        self.check_bright_guide_for_ers()
-        self.check_enough_guide_for_ers()
+        self.check_guide_count()
 
     def check_guide_geometry(self):
         """Check for guide stars too tightly clustered.
@@ -709,21 +711,21 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         elif P2 < P2_lim + 1:
             self.add_message('warning', f'P2: {P2:.2f} less than {P2_lim + 1} for {obs_type}')
 
-    def check_bright_guide_for_ers(self, n_bright_req=3, bright_lim=9.0):
-        """Check for at least 3 guide stars brighter than 9th mag for ERs.
+    def check_guide_count(self):
+        """Check for sufficient guide star fractional count
 
         """
-        n_bright = np.count_nonzero(self.guides['mag'] < bright_lim)
-        if self.is_ER and n_bright < n_bright_req:
+        obs_type = 'ER' if self.is_ER else 'OR'
+        if self.is_ER and self.guide_count_9th < 3.0:
             self.add_message(
-                'critical', f'ER bright stars: only {n_bright} stars brighter than {bright_lim}')
+                'critical',
+                f'{obs_type} count of 9th mag guide stars {self.guide_count_9th:.2f} < 3.0')
 
-    def check_enough_guide_for_ers(self, n_required=8):
-        """Warn on ERs with fewer than n_required (8) guide stars.
-
-        """
-        if self.is_ER and len(self.guides) < n_required:
-            self.add_message('critical', f'ER guide stars: only {len(self.guides)} stars')
+        count_lim = 4.0 if self.is_OR else 6.0
+        if self.guide_count < count_lim:
+            self.add_message(
+                'critical',
+                f'{obs_type} count of guide stars {self.guide_count:.2f} < {count_lim}')
 
     def check_pos_err_guide(self, star):
         """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
