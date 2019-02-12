@@ -32,11 +32,6 @@ ACA_PREVIEW_VERSION = aca_preview_test(get_version=True)
 PROSECO_VERSION = proseco.test(get_version=True)
 FILEDIR = Path(__file__).parent
 
-# Fix characteristics compatibility issues between 4.3.x and 4.4+
-if not hasattr(CHAR, 'CCD'):
-    for attr in ('CCD', 'PIX_2_ARC', 'ARC_2_PIX'):
-        setattr(CHAR, attr, getattr(GUIDE, attr))
-
 
 def main(sys_args=None):
     """Command line interface to preview_load()"""
@@ -438,13 +433,6 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         """
         # Get stars from AGASC and set ``stars`` attribute
         self.set_stars()
-
-        # Compatibility for 4.3.x before #221 (Make plot() method behave
-        # consistently and correctly)
-        if not hasattr(self, 'bad_stars_mask'):
-            acqs = self.acqs
-            acqs.stars = self.stars
-            _, acqs.bad_stars = acqs.get_acq_candidates(acqs.stars)
 
     def make_roll_options_report(self):
         """Make a summary table and separate report page for roll options.
