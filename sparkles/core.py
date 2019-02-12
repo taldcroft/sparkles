@@ -453,9 +453,11 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             opt['roll'] = roll
             del opt['aca']
 
-        opts_table = Table(opts, names=['roll', 'P2', 'n_stars', 'improvement'])
-        for name in opts_table.colnames:
-            opts_table[name].info.format = '.2f'
+        opts_table = Table(opts, names=['roll', 'P2', 'n_stars', 'improvement',
+                                        'roll_min', 'roll_max', 'add_ids', 'drop_ids'])
+        for col in opts_table.itercols():
+            if col.dtype.kind == 'f':
+                col.info.format = '.2f'
         self.roll_options_table = opts_table
 
         # Make a separate preview page for the roll options

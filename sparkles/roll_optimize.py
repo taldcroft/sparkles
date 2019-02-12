@@ -243,28 +243,43 @@ class RollOptimizeMixin:
         # print(f'Roll min, max={roll_min:.2f}, {roll_max:.2f}')
         # For each unique set, find the roll_offset range over which that set
         # is in the FOV.
-        better_rolls = []
+        roll_intervals = []
         for uniq_ids in uniq_ids_sets:
             # print(uniq_ids - ids0, ids0 - uniq_ids)
             # for sid in uniq_ids - ids0:
                 # star = self.stars.get_id(sid)
                 # print(f'{sid} {star["mag"]} {star["yang"]} {star["zang"]}')
+
             # This says that ``uniq_ids`` is a subset of available ``ids`` in
-            # FOV for roll_offset.
+            # FOV for roll_offset in the list comprehension below.  So everywhere
+            # this list is True corresponds to a roll_offset where all the
+            # ``uniq_ids`` are in the FOV.
             in_fov = np.array([uniq_ids <= ids for ids in ids_list])
 
-            # Get the contiguous intervals where uniq_ids is in FOV
+            # Get the contiguous intervals of roll_offset where uniq_ids is in FOV
             intervals = logical_intervals(in_fov, x=roll_offsets + roll)
 
             for interval in intervals:
-                # print(interval)
                 if interval['x_start'] > roll_max or interval['x_stop'] < roll_min:
-                    # print(f'skipping {roll_max} {roll_min}')
                     continue  # Interval completely outside allowed roll range
-                better_roll = (interval['x_start'] + interval['x_stop']) / 2
-                better_rolls.append(np.clip(better_roll, roll_min, roll_max))
 
-        return sorted(set(better_rolls)), roll_min, roll_nom, roll_max
+                roll_interval = {'roll': (interval['x_start'] + interval['x_stop']) / 2,
+                                 'roll_min': interval['x_start'],
+                                 'roll_max': interval['x_stop'],
+                                 'add_ids': uniq_ids - ids0,
+                                 'drop_ids': ids0 - uniq_ids}
+
+                # Clip roll values to allowed range for obsid
+                for key in ('roll', 'roll_min', 'roll_max'):
+                    roll_interval[key] = np.clip(roll_interval[key], roll_min, roll_max)
+
+                roll_intervals.append(roll_interval)
+
+        roll_info = {'roll_min': roll_min,
+                     'roll_max': roll_max,
+                     'roll_nom': roll_nom}
+
+        return sorted(roll_intervals, key=lambda x: x['roll']), roll_info
 
     def get_roll_options(self):
 
@@ -276,6 +291,14 @@ class RollOptimizeMixin:
             return
 
         def improve_metric(n_stars, P2, n_stars_new, P2_new):
+            """Ad-hoc metric defining improvement of a catalog.
+
+            :param n_stars: original n_stars
+            :param P2: original P2
+            :param n_stars_new: new n_stars
+            :param P2_new: new P2
+            :returns: metric
+            """
             n_stars_mult_x = np.array([2.0, 3.0, 4.0, 5.0])
             n_stars_mult_y = np.array([1.2, 0.6, 0.3, 0.15])
 
@@ -296,7 +319,7 @@ class RollOptimizeMixin:
         n_stars = guide_count(self.guides['mag'], self.guides.t_ccd, self.is_ER)
 
         cand_idxs = self.get_candidate_better_stars()
-        better_rolls, roll_min, roll_nom, roll_max = self.get_better_rolls(cand_idxs)
+        roll_intervals, self.roll_info = self.get_roll_intervals(cand_idxs)
 
         q_att = Quat(self.att)
         q_targ = calc_targ_from_aca(q_att, 0, 0)
@@ -304,10 +327,16 @@ class RollOptimizeMixin:
         roll_options = [{'aca': deepcopy(self),
                          'P2': P2,
                          'n_stars': n_stars,
-                         'improvement': 0.0}]
+                         'improvement': 0.0,
+                         'roll': q_att.roll,
+                         'roll_min': q_att.roll,
+                         'roll_max': q_att.roll,
+                         'add_ids': set(),
+                         'drop_ids': set()}]
 
-        for better_roll in better_rolls:
-            q_targ_roll = Quat([q_targ.ra, q_targ.dec, better_roll])
+        for roll_interval in roll_intervals:
+            roll = roll_interval['roll']
+            q_targ_roll = Quat([q_targ.ra, q_targ.dec, roll])
             q_att_roll = calc_aca_from_targ(q_targ_roll, 0, 0)
 
             kwargs = self.call_args.copy()
@@ -319,18 +348,14 @@ class RollOptimizeMixin:
             n_stars_rolled = guide_count(aca_rolled.guides['mag'], aca_rolled.guides.t_ccd,
                                          self.is_ER)
 
-            improvement = improve_metric(n_stars, P2,
-                                         n_stars_rolled, P2_rolled)
+            improvement = improve_metric(n_stars, P2, n_stars_rolled, P2_rolled)
 
             if improvement > 0.3:
                 roll_option = {'aca': aca_rolled,
                                'P2': P2_rolled,
                                'n_stars': n_stars_rolled,
                                'improvement': improvement}
+                roll_option.update(roll_interval)
                 roll_options.append(roll_option)
-
-        self.roll_info = {'roll_min': roll_min,
-                          'roll_max': roll_max,
-                          'roll_nom': roll_nom}
 
         self.roll_options = roll_options
