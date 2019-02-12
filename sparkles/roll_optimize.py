@@ -16,7 +16,7 @@ from chandra_aca.transform import (radec_to_yagzag, yagzag_to_pixels,
                                    snr_mag_for_t_ccd)
 from Quaternion import Quat
 
-import proseco.characteristics as ACA
+from proseco.characteristics import CCD
 from proseco import get_aca_catalog
 
 
@@ -120,8 +120,8 @@ class RollOptimizeMixin:
         # region (mentioned above) between an inner square and outer circle.
         rc_pad = 40
         stars = self.stars
-        in_fov = ((np.abs(stars['row']) < ACA.CCD['row_max'] - rc_pad) &
-                  (np.abs(stars['col']) < ACA.CCD['col_max'] - rc_pad))
+        in_fov = ((np.abs(stars['row']) < CCD['row_max'] - rc_pad) &
+                  (np.abs(stars['col']) < CCD['col_max'] - rc_pad))
         radius2 = stars['row'] ** 2 + stars['col'] ** 2
         sp_ok = ~in_fov & (radius2 < 2 * (512 + rc_pad) ** 2)
 
@@ -202,7 +202,7 @@ class RollOptimizeMixin:
                 yag, zag = radec_to_yagzag(cands['ra'], cands['dec'], q_att_roll)
                 row, col = yagzag_to_pixels(yag, zag, allow_bad=True, pix_zero_loc='edge')
 
-                ok = (np.abs(row) < ACA.CCD['row_max']) & (np.abs(col) < ACA.CCD['col_max'])
+                ok = (np.abs(row) < CCD['row_max']) & (np.abs(col) < CCD['col_max'])
                 ids_list.append(set(cands['id'][ok]))
             return ids_list
 
