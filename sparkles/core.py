@@ -6,6 +6,7 @@ Preliminary review of ACA catalogs selected by proseco.
 """
 import io
 import re
+import weakref
 from pathlib import Path
 import pickle
 from itertools import combinations, chain
@@ -22,7 +23,6 @@ from astropy.table import Column, Table
 import proseco
 from proseco.catalog import ACATable
 import proseco.characteristics as CHAR
-import proseco.characteristics_guide as GUIDE
 
 from . import test as aca_preview_test
 from .roll_optimize import RollOptimizeMixin, guide_count
@@ -309,9 +309,22 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         loud = kwargs.pop('loud', False)
 
         # Make a copy of input aca table along with a deepcopy of its meta.
-        # TO DO: improve efficiency here by avoiding deepcopy.
         super().__init__(*args, **kwargs)
 
+        # Same hack as in __setstate__ (unpickling), namely to force any AcqProbs
+        # objects to have the correct weakref to the current self.acqs.  As a reminder
+        # the AcqProbs objects are found in the 'probs' column of self.acqs.cand_acqs.
+        # The self.acqs['probs'] objects are just refs to the cand_acqs['probs'] ones.
+        #
+        # The _base_repr_ method of the base class does some trickery to normally display
+        # the "interesting" columns with default formatting applied. This actually creates
+        # a temporary table of this class with the right columns, but without any meta.  In
+        # that case self.acqs will be None.
+        if self.acqs is not None:
+            for probs in self.acqs.cand_acqs['probs']:
+                probs.acqs = weakref.ref(self.acqs)
+
+        # Add row and col columns from yag/zag, if not already there.
         self.add_row_col()
 
         self.context = {}  # Jinja2 context for output HTML review
@@ -340,11 +353,13 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             self.fids.obsid = num_obsid
 
         # Compute guide count once for the record
-        self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd)
-        if self.is_ER:
-            self.guide_count_9th = guide_count(self.guides['mag'], self.guides.t_ccd, self.is_ER)
+        # TODO make this a property
+        if self.guides is not None:
+            self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd)
+            if self.is_ER:
+                self.guide_count_9th = guide_count(self.guides['mag'], self.guides.t_ccd, self.is_ER)
 
-        if 'mag_err' not in self.colnames:
+        if 'mag_err' not in self.colnames and self.acqs is not None and self.guides is not None:
             # Add 'mag_err' column after 'mag' using 'mag_err' from guides and acqs
             mag_errs = {entry['id']: entry['mag_err'] for entry in chain(self.acqs, self.guides)}
             mag_errs = Column([mag_errs.get(id, 0.0) for id in self['id']], name='mag_err')
