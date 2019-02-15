@@ -753,7 +753,7 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         # POS_ERR is in milliarcsecs in the table
         pos_err = star['POS_ERR'] * 0.001
         for limit, category in ((2.0, 'critical'),
-                                (1.0, 'warning')):
+                                (1.25, 'warning')):
             if pos_err > limit:
                 self.add_message(
                     category,

@@ -91,16 +91,31 @@ def test_guide_count_or():
 def test_pos_err_on_guide():
     """Test the check that no guide star has large POS_ERR"""
     stars = StarsTable.empty()
-    # Add two stars because separate P2 tests seem to break with just one star
-    stars.add_fake_star(id=100, yang=100, zang=-200, POS_ERR=2500, mag=8.0)
-    stars.add_fake_star(id=101, yang=0, zang=500, mag=8.0)
-    aca = get_aca_catalog(**mod_std_info(n_fid=0), stars=stars, dark=DARK40, raise_exc=True)
+    stars.add_fake_star(id=100, yang=100, zang=-200, POS_ERR=2010, mag=8.0)
+    stars.add_fake_star(id=101, yang=0, zang=500, mag=8.0, POS_ERR=1260)  # Just over warning
+    stars.add_fake_star(id=102, yang=-200, zang=500, mag=8.0, POS_ERR=1240)  # Just under warning
+    stars.add_fake_star(id=103, yang=500, zang=500, mag=8.0, POS_ERR=1260)  # Not selected
+
+    aca = get_aca_catalog(**mod_std_info(n_fid=0), stars=stars, dark=DARK40, raise_exc=True,
+                          include_ids_guide=[100, 101])  # Must force 100, 101, pos_err too big
+
     aca = ACAReviewTable(aca)
-    aca.check_pos_err_guide(aca.guides.get_id(100))
-    assert len(aca.messages) == 1
+
+    # 103 not selected because pos_err > 1.25 arcsec
+    assert aca.guides['id'].tolist() == [100, 101, 102]
+
+    # Run pos err checks
+    for guide in aca.guides:
+        aca.check_pos_err_guide(guide)
+
+    assert len(aca.messages) == 2
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
-    assert 'Guide star 100 POS_ERR 2.50' in msg['text']
+    assert 'Guide star 100 POS_ERR 2.01' in msg['text']
+
+    msg = aca.messages[1]
+    assert msg['category'] == 'warning'
+    assert 'Guide star 101 POS_ERR 1.26' in msg['text']
 
 
 def test_imposters_on_guide():
