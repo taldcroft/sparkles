@@ -12,6 +12,7 @@ import pickle
 from itertools import combinations, chain
 
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +23,7 @@ from astropy.table import Column, Table
 
 import proseco
 from proseco.catalog import ACATable
-import proseco.characteristics as CHAR
+import proseco.characteristics as ACA
 
 from . import test as aca_preview_test
 from .roll_optimize import RollOptimizeMixin, guide_count
@@ -357,7 +358,8 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         if self.guides is not None:
             self.guide_count = guide_count(self.guides['mag'], self.guides.t_ccd)
             if self.is_ER:
-                self.guide_count_9th = guide_count(self.guides['mag'], self.guides.t_ccd, self.is_ER)
+                self.guide_count_9th = guide_count(self.guides['mag'], self.guides.t_ccd,
+                                                   self.is_ER)
 
         if 'mag_err' not in self.colnames and self.acqs is not None and self.guides is not None:
             # Add 'mag_err' column after 'mag' using 'mag_err' from guides and acqs
@@ -592,12 +594,22 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
 
         """
         for entry in self:
-            self.check_guide_fid_position_on_ccd(entry)
-            if entry['id'] in self.guides['id']:
-                guide_star = self.guides.get_id(entry['id'])
-                self.check_pos_err_guide(guide_star)
-                self.check_imposters_guide(guide_star)
-                self.check_too_bright_guide(guide_star)
+            entry_type = entry['type']
+            is_guide = entry_type in ('BOT', 'GUI')
+            is_acq = entry_type in ('BOT', 'ACQ')
+            is_fid = entry_type == 'FID'
+
+            if is_guide or is_fid:
+                self.check_guide_fid_position_on_ccd(entry)
+
+            if is_guide:
+                star = self.guides.get_id(entry['id'])
+                self.check_pos_err_guide(star)
+                self.check_imposters_guide(star)
+                self.check_too_bright_guide(star)
+
+            if is_guide or is_acq:
+                self.check_bad_stars(entry)
 
         self.check_guide_geometry()
         self.check_acq_p2()
@@ -664,8 +676,8 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         dither_track_y = 5.0 if (entry_type == 'FID') else dither_guide_y
         dither_track_p = 5.0 if (entry_type == 'FID') else dither_guide_p
 
-        row_lim = CHAR.max_ccd_row - CHAR.CCD['window_pad']
-        col_lim = CHAR.max_ccd_col - CHAR.CCD['window_pad']
+        row_lim = ACA.max_ccd_row - ACA.CCD['window_pad']
+        col_lim = ACA.max_ccd_col - ACA.CCD['window_pad']
 
         def sign(axis):
             """Return sign of the corresponding entry value.  Note that np.sign returns 0
@@ -673,8 +685,8 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
             """
             return -1 if (entry[axis] < 0) else 1
 
-        track_lims = {'row': (row_lim - dither_track_y * CHAR.ARC_2_PIX) * sign('row'),
-                      'col': (col_lim - dither_track_p * CHAR.ARC_2_PIX) * sign('col')}
+        track_lims = {'row': (row_lim - dither_track_y * ACA.ARC_2_PIX) * sign('row'),
+                      'col': (col_lim - dither_track_p * ACA.ARC_2_PIX) * sign('col')}
 
         if entry_type in ('GUI', 'BOT', 'FID'):
             for axis in ('row', 'col'):
@@ -765,6 +777,7 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         """Warn on stars with larger imposter centroid offsets
 
         """
+
         # Borrow the imposter offset method from starcheck
         def imposter_offset(cand_mag, imposter_mag):
             """
@@ -820,6 +833,16 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
             self.add_message(
                 'warning',
                 f'Guide star {agasc_id} < 6.1. Double check selection.', idx=idx)
+
+    def check_bad_stars(self, entry):
+        """Check if entry (guide or acq) is in bad star set from proseco
+
+        :param entry: ACAReviewTable row
+        :return: None
+        """
+        if entry['id'] in ACA.bad_star_set:
+            msg = f'Star {entry["id"]} is in proseco bad star set'
+            self.add_message('critical', msg, idx=entry['idx'])
 
 
 # Run from source ``python -m sparkles.preview <load_name> [options]``
