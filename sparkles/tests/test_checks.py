@@ -1,5 +1,6 @@
 # coding: utf-8
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
+import agasc
 from chandra_aca.transform import mag_to_count_rate
 from proseco import get_aca_catalog
 from proseco.core import StarsTable
@@ -139,6 +140,19 @@ def test_imposters_on_guide():
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
     assert 'Guide star imposter offset' in msg['text']
+
+
+def test_bad_star_set():
+    bad_id = 1248994952
+    star = agasc.get_star(bad_id)
+    ra = star['RA']
+    dec = star['DEC']
+    aca = get_aca_catalog(**mod_std_info(n_fid=0, att=(ra, dec, 0)), dark=DARK40,
+                          include_ids_guide=[bad_id])
+    acar = ACAReviewTable(aca)
+    acar.check_catalog()
+    assert acar.messages == [
+        {'text': 'Star 1248994952 is in proseco bad star set', 'category': 'critical', 'idx': 5}]
 
 
 def test_too_bright_guide_magerr():
