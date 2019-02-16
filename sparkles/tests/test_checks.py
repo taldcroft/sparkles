@@ -1,6 +1,8 @@
 # coding: utf-8
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import agasc
+import numpy as np
+
 from chandra_aca.transform import mag_to_count_rate
 from proseco import get_aca_catalog
 from proseco.core import StarsTable
@@ -181,3 +183,41 @@ def test_too_bright_guide_mag_aca_err():
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
     assert 'small MAG_ACA_ERR' in msg['text']
+
+
+def test_check_fid_spoiler_score():
+    """Test checking fid spoiler score"""
+    stars = StarsTable.empty()
+    # def add_fake_stars_from_fid(self, fid_id=1, offset_y=0, offset_z=0, mag=7.0,
+    #                            id=None, detector='ACIS-S', sim_offset=0):
+    stars.add_fake_constellation(n_stars=8)
+
+    # Add a red spoiler on top of fids 1-4 and yellow on top of fid 5
+    stars.add_fake_stars_from_fid(fid_id=[1, 2, 3, 4], mag=7 + 2)
+    stars.add_fake_stars_from_fid(fid_id=[5], mag=7 + 4.5)
+
+    aca = get_aca_catalog(stars=stars, **STD_INFO)
+
+    assert np.all(aca.fids.cand_fids['spoiler_score'] == [4, 4, 4, 4, 1, 0])
+
+    acar = ACAReviewTable(aca)
+    acar.check_catalog()
+    assert acar.messages == [
+        {'text': 'Fid 1 has red spoiler: star 108 with mag 9.0', 'category': 'critical', 'idx': 1},
+        {'text': 'Fid 5 has yellow spoiler: star 112 with mag 11.5', 'category': 'warning',
+         'idx': 2}]
+
+
+def test_check_fid_count():
+    """Test checking fid count"""
+    stars = StarsTable.empty()
+    # def add_fake_stars_from_fid(self, fid_id=1, offset_y=0, offset_z=0, mag=7.0,
+    #                            id=None, detector='ACIS-S', sim_offset=0):
+    stars.add_fake_constellation(n_stars=8)
+
+    aca = get_aca_catalog(stars=stars, **mod_std_info(detector='HRC-S', sim_offset=40000))
+    acar = ACAReviewTable(aca)
+    acar.check_catalog()
+
+    assert acar.messages == [
+        {'text': 'Catalog has 2 fids but 3 are expected', 'category': 'critical'}]
