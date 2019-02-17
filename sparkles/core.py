@@ -572,7 +572,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         P2 = -np.log10(self.acqs.calc_p_safe())
         att = Quat(self.att)
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
-        catalog = '\n'.join(self.pformat(max_width=-1))
+        catalog = '\n'.join(self.pformat(max_width=-1, max_lines=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
 
         message_text = self.get_formatted_messages()
