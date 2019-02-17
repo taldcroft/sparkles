@@ -691,8 +691,8 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         if entry_type in ('GUI', 'BOT', 'FID'):
             for axis in ('row', 'col'):
                 track_delta = abs(track_lims[axis]) - abs(entry[axis])
-                for delta_lim, category in ((2.5, 'critical'),
-                                            (5.0, 'warning')):
+                for delta_lim, category in ((3.0, 'critical'),
+                                            (5.0, 'info')):
                     if track_delta < delta_lim:
                         text = (f"Less than {delta_lim} pix edge margin {axis} "
                                 f"lim {track_lims[axis]:.1f} "
