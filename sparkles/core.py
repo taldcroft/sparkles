@@ -611,9 +611,14 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
             if is_guide or is_acq:
                 self.check_bad_stars(entry)
 
+            if is_fid:
+                fid = self.fids.get_id(entry['id'])
+                self.check_fid_spoiler_score(entry['idx'], fid)
+
         self.check_guide_geometry()
         self.check_acq_p2()
         self.check_guide_count()
+        self.check_fid_count()
 
     def check_guide_geometry(self):
         """Check for guide stars too tightly clustered.
@@ -843,6 +848,39 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         if entry['id'] in ACA.bad_star_set:
             msg = f'Star {entry["id"]} is in proseco bad star set'
             self.add_message('critical', msg, idx=entry['idx'])
+
+    def check_fid_spoiler_score(self, idx, fid):
+        """
+        Check the spoiler warnings for fid
+
+        :param idx: catalog index of fid entry being checked
+        :param fid: corresponding row of ``fids`` table
+        :return: None
+        """
+        if fid['spoiler_score'] == 0:
+            return
+
+        fid_id = fid['id']
+        category_map = {'yellow': 'warning',
+                        'red': 'critical'}
+
+        for spoiler in fid['spoilers']:
+            msg = (f'Fid {fid_id} has {spoiler["warn"]} spoiler: star {spoiler["id"]} with mag '
+                   f'{spoiler["mag"]}')
+            self.add_message(category_map[spoiler['warn']], msg, idx=idx)
+
+    def check_fid_count(self):
+        """
+        Check for the correct number of fids.
+
+        :return: None
+        """
+        if self.n_fid == 0:
+            return
+
+        if len(self.fids) != self.n_fid:
+            msg = f'Catalog has {len(self.fids)} fids but {self.n_fid} are expected'
+            self.add_message('critical', msg)
 
 
 # Run from source ``python -m sparkles.preview <load_name> [options]``
