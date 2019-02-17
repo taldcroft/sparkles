@@ -664,8 +664,6 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         """Check position of guide stars and fid lights on CCD.
 
         """
-        entry_type = entry['type']
-
         # Shortcuts and translate y/z to yaw/pitch
         dither_guide_y = self.dither_guide.y
         dither_guide_p = self.dither_guide.z
@@ -673,8 +671,8 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         # Set "dither" for FID to be pseudodither of 5.0 to give 1 pix margin
         # Set "track phase" dither for BOT GUI to max guide dither over
         # interval or 20.0 if undefined.  TO DO: hand the guide guide dither
-        dither_track_y = 5.0 if (entry_type == 'FID') else dither_guide_y
-        dither_track_p = 5.0 if (entry_type == 'FID') else dither_guide_p
+        dither_track_y = 5.0 if (entry['type'] == 'FID') else dither_guide_y
+        dither_track_p = 5.0 if (entry['type'] == 'FID') else dither_guide_p
 
         row_lim = ACA.max_ccd_row - ACA.CCD['window_pad']
         col_lim = ACA.max_ccd_col - ACA.CCD['window_pad']
@@ -688,18 +686,17 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         track_lims = {'row': (row_lim - dither_track_y * ACA.ARC_2_PIX) * sign('row'),
                       'col': (col_lim - dither_track_p * ACA.ARC_2_PIX) * sign('col')}
 
-        if entry_type in ('GUI', 'BOT', 'FID'):
-            for axis in ('row', 'col'):
-                track_delta = abs(track_lims[axis]) - abs(entry[axis])
-                for delta_lim, category in ((3.0, 'critical'),
-                                            (5.0, 'info')):
-                    if track_delta < delta_lim:
-                        text = (f"Less than {delta_lim} pix edge margin {axis} "
-                                f"lim {track_lims[axis]:.1f} "
-                                f"val {entry[axis]:.1f} "
-                                f"delta {track_delta:.1f}")
-                        self.add_message(category, text, idx=entry['idx'])
-                        break
+        for axis in ('row', 'col'):
+            track_delta = abs(track_lims[axis]) - abs(entry[axis])
+            for delta_lim, category in ((3.0, 'critical'),
+                                        (5.0, 'info')):
+                if track_delta < delta_lim:
+                    text = (f"Less than {delta_lim} pix edge margin {axis} "
+                            f"lim {track_lims[axis]:.1f} "
+                            f"val {entry[axis]:.1f} "
+                            f"delta {track_delta:.1f}")
+                    self.add_message(category, text, idx=entry['idx'])
+                    break
 
     # TO DO: acq star position check:
     # For acq stars, the distance to the row/col padded limits are also confirmed,
