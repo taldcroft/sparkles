@@ -841,10 +841,7 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
     def check_too_bright_guide(self, star):
         """Warn on guide stars that may be too bright.
 
-        - Critical if MAG_ACA_ERR used in selection is less than 0.1
-        - Critical if within 2 * mag_err of the hard 5.8 limit, warn within 3 * mag_err
-        - Warning if brighter than 6.1 (should be double-checked in
-          context of other candidates).
+        - Critical if within 2 * mag_err of the hard 5.8 limit, caution within 3 * mag_err
 
         """
         agasc_id = star['id']
@@ -852,23 +849,13 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         mag_err = star['mag_err']
         mag_aca_err = star['MAG_ACA_ERR'] * 0.01
         for mult, category in ((2, 'critical'),
-                               (3, 'warning')):
+                               (3, 'caution')):
             if star['mag'] - (mult * mag_err) < 5.8:
                 self.add_message(
                     category,
                     f'Guide star {agasc_id} within {mult}*mag_err of 5.8 '
                     f'(mag_err={mag_err:.2f})', idx=idx)
                 break
-        if (star['mag'] < 6.1) and (mag_aca_err < 0.1):
-            self.add_message(
-                'critical',
-                f'Guide star {agasc_id} < 6.1 with small MAG_ACA_ERR={mag_aca_err:.2f}.  '
-                f'Double check selection.',
-                idx=idx)
-        elif star['mag'] < 6.1:
-            self.add_message(
-                'warning',
-                f'Guide star {agasc_id} < 6.1. Double check selection.', idx=idx)
 
     def check_bad_stars(self, entry):
         """Check if entry (guide or acq) is in bad star set from proseco
