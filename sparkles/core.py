@@ -777,7 +777,10 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
             self.add_message('warning', f'P2: {P2:.2f} less than {P2_lim + 1} for {obs_type}')
 
     def check_guide_count(self):
-        """Check for sufficient guide star fractional count
+        """
+        Check for sufficient guide star fractional count.
+
+        Also check for multiple very-bright stars
 
         """
         obs_type = 'ER' if self.is_ER else 'OR'
@@ -791,6 +794,12 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
             self.add_message(
                 'critical',
                 f'{obs_type} count of guide stars {self.guide_count:.2f} < {count_lim}')
+
+        bright_cnt_lim = 1 if self.is_OR else 3
+        if np.count_nonzero(self['mag'] < 6.1) > bright_cnt_lim:
+            self.add_message(
+                'caution',
+                f'{obs_type} with more than {bright_cnt_lim} stars brighter than 6.1.')
 
     def check_pos_err_guide(self, star):
         """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
