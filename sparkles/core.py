@@ -12,9 +12,10 @@ import pickle
 from itertools import combinations, chain
 
 import matplotlib
-
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
+
 import numpy as np
 from Quaternion import Quat
 from jinja2 import Template
@@ -453,7 +454,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         """
         # Get stars from AGASC and set ``stars`` attribute
-        self.set_stars()
+        self.set_stars(filter_near_fov=False)
 
     def make_roll_options_report(self):
         """Make a summary table and separate report page for roll options.
@@ -513,6 +514,39 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         for key in ('roll_min', 'roll_max', 'roll_nom'):
             self.context[key] = f'{self.roll_info[key]:.2f}'
 
+    def plot(self, ax=None, **kwargs):
+        """
+        Plot the catalog and background stars.
+
+        :param ax: matplotlib axes object for plotting to (optional)
+        :param kwargs: other keyword args for plot_stars
+        """
+        fig = super().plot(ax, **kwargs)
+        ax = fig.gca()
+
+        # Increase plot bounds to allow seeing stars within a 750 pixel radius
+        ax.set_xlim(-770, 770)  # pixels
+        ax.set_ylim(-770, 770)  # pixels
+
+        # Draw a circle at 735 pixels showing extent of CCD corners
+        circle = Circle((0, 0), radius=735, facecolor='none',
+                                           edgecolor='g', alpha=0.5, lw=3)
+        ax.add_patch(circle)
+
+        # Plot a circle around stars that were not already candidates
+        # for BOTH guide and acq, and were not selected as EITHER guide
+        # or acq.  Visually this means highlighting new possibilities.
+        idxs = self.get_candidate_better_stars()
+        stars = self.stars[idxs]
+        for star in stars:
+            already_checked = ((star['id'] in self.acqs.cand_acqs['id']) and
+                               (star['id'] in self.guides.cand_guides['id']))
+            selected = (star['id'] in set(self.acqs['id']) | set(self.guides['id']))
+            if (not already_checked and not selected):
+                circle = Circle((star['row'], star['col']), radius=20,
+                                facecolor='none', edgecolor='r', alpha=0.8, lw=1.5)
+                ax.add_patch(circle)
+
     def make_starcat_plot(self):
         """Make star catalog plot for this observation.
 
@@ -524,7 +558,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         if outfile.exists():
             return
 
-        fig = plt.figure(figsize=(4.5, 4))
+        fig = plt.figure(figsize=(6.75, 6.0))
         ax = fig.add_subplot(1, 1, 1)
         self.plot(ax=ax)
         plt.tight_layout()
@@ -538,7 +572,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         P2 = -np.log10(self.acqs.calc_p_safe())
         att = Quat(self.att)
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
-        catalog = '\n'.join(self.pformat(max_width=-1))
+        catalog = '\n'.join(self.pformat(max_width=-1, max_lines=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
 
         message_text = self.get_formatted_messages()
