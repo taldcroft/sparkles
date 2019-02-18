@@ -52,6 +52,45 @@ def test_review_catalog(tmpdir):
     assert (obspath / 'rolls' / 'index.html').exists()
 
 
+def test_review_roll_options(tmpdir):
+    """
+    Test that the 'aca' key in the roll_option dict is an ACAReviewTable
+    and that the first one has the same messages as the base (original roll)
+    version
+
+    :param tmpdir: temp dir supplied by pytest
+    :return: None
+    """
+    # This is a catalog that has a critical message and one roll option
+    kwargs = {'att': (160.9272490316051, 14.851572261604668, 99.996111473617802),
+              'date': '2019:046:07:16:58.449',
+              'detector': 'ACIS-S',
+              'dither_acq': (7.9992, 7.9992),
+              'dither_guide': (7.9992, 7.9992),
+              'focus_offset': 0.0,
+              'man_angle': 1.792525648258372,
+              'n_acq': 8,
+              'n_fid': 3,
+              'n_guide': 5,
+              'obsid': 21477,
+              'sim_offset': 0.0,
+              't_ccd_acq': -11.14616454993262,
+              't_ccd_guide': -11.150381856818923}
+
+    aca = get_aca_catalog(**kwargs)
+    acar = aca.get_review_table()
+    acar.run_aca_review(report_dir=tmpdir, roll_level='critical')
+
+    assert len(acar.roll_options) == 2
+
+    # First roll_option is at the same attitude (and roll) as original.  The check
+    # code is run again independently but the outcome should be the same.
+    assert acar.roll_options[0]['aca'].messages == acar.messages
+
+    for opt in acar.roll_options:
+        assert isinstance(opt['aca'], ACAReviewTable)
+
+
 def test_probs_weak_reference():
     """
     Test issues related to the weak reference to self.acqs within the AcqProbs
