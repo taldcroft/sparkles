@@ -347,6 +347,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # up to 2 decimal points.  This is the case when obsid is taken from the
         # ORviewer dict of ACATable pickles from prelim review.  Tidy things up
         # in these cases.
+        # TODO: make base obsid MetaAttribute in proseco handle this munging.
         if obsid is not None:
             f_obsid = round(float(obsid), 2)
             i_obsid = int(f_obsid)
@@ -480,11 +481,9 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # as the first row.
         opts = [opt.copy() for opt in self.roll_options]
         rolls = [Quat(opt['aca'].att).roll for opt in self.roll_options]
-        acas = [ACAReviewTable(opt['aca'], obsid=roll)
-                for opt, roll in zip(opts, rolls)]
+        acas = [opt['aca'] for opt in opts]
 
-        for roll, opt in zip(rolls, opts):
-            opt['roll'] = roll
+        for opt in opts:
             del opt['aca']
 
         opts_table = Table(opts, names=['roll', 'P2', 'n_stars', 'improvement',
