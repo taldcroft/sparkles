@@ -225,15 +225,13 @@ def test_imposters_on_guide():
     dark_with_badpix = DARK40.copy()
     dark_with_badpix.aca[100, -200] = cnt * 0.1
     dark_with_badpix.aca[100, -201] = cnt * 0.1
-    dark_with_badpix.aca[101, -201] = cnt * 0.1
-    dark_with_badpix.aca[101, -200] = cnt * 0.1
     aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), stars=stars, dark=dark_with_badpix,
                           raise_exc=True)
     aca = ACAReviewTable(aca)
     aca.check_imposters_guide(aca.guides.get_id(110))
     assert len(aca.messages) == 1
     msg = aca.messages[0]
-    assert msg['category'] == 'critical'
+    assert msg['category'] == 'warning'
     assert 'Guide star imposter offset' in msg['text']
 
 
