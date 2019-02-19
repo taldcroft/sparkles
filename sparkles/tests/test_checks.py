@@ -78,6 +78,34 @@ def test_guide_count_er():
     aca.check_guide_count()
     assert len(aca.messages) == 0
 
+    # This configuration should not warn with too many really bright stars
+    # (allowed to have 3 stars brighter than 6.1)
+    stars = StarsTable.empty()
+    stars.add_fake_constellation(n_stars=3, mag=8.0)
+    stars.add_fake_star(yang=100, zang=100, mag=6.0)
+    stars.add_fake_star(yang=1000, zang=-1000, mag=6.0)
+    stars.add_fake_star(yang=-2000, zang=-2000, mag=6.0)
+    aca = get_aca_catalog(**mod_std_info(obsid=50000, n_fid=0, n_guide=8), stars=stars, dark=DARK40,
+                          raise_exc=True)
+    aca = ACAReviewTable(aca)
+    aca.check_guide_count()
+    assert len(aca.messages) == 0
+
+    # This configuration should warn with too many bright stars
+    # (has > 3.0 stars brighter than 6.1
+    stars = StarsTable.empty()
+    stars.add_fake_constellation(n_stars=4, mag=6.0)
+    stars.add_fake_star(yang=1000, zang=1000, mag=8.0)
+    stars.add_fake_star(yang=-1000, zang=1000, mag=8.0)
+    aca = get_aca_catalog(**mod_std_info(obsid=50000, n_fid=0, n_guide=8), stars=stars, dark=DARK40,
+                          raise_exc=True)
+    aca = ACAReviewTable(aca)
+    aca.check_guide_count()
+    assert len(aca.messages) == 1
+    msg = aca.messages[0]
+    assert msg['category'] == 'caution'
+    assert 'ER with more than 3 stars brighter than 6.1.' in msg['text']
+
 
 def test_guide_count_or():
     """Test the check that an OR has enough fractional guide stars by guide_count"""
@@ -91,6 +119,32 @@ def test_guide_count_or():
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
     assert 'OR count of guide stars 2.00 < 4.0' in msg['text']
+
+    # This configuration should not warn with too many really bright stars
+    # (allowed to have 1 stars brighter than 6.1)
+    stars = StarsTable.empty()
+    stars.add_fake_constellation(n_stars=3, mag=8.0)
+    stars.add_fake_star(yang=100, zang=100, mag=6.0)
+    aca = get_aca_catalog(**mod_std_info(n_fid=3, n_guide=5, obsid=1), stars=stars, dark=DARK40,
+                          raise_exc=True)
+    aca = ACAReviewTable(aca)
+    aca.check_guide_count()
+    assert len(aca.messages) == 0
+
+    # This configuration should warn with too many bright stars
+    # (has > 1.0 stars brighter than 6.1
+    stars = StarsTable.empty()
+    stars.add_fake_constellation(n_stars=3, mag=8.0)
+    stars.add_fake_star(yang=1000, zang=1000, mag=6.0)
+    stars.add_fake_star(yang=-1000, zang=1000, mag=6.0)
+    aca = get_aca_catalog(**mod_std_info(n_fid=3, n_guide=5, obsid=1), stars=stars, dark=DARK40,
+                          raise_exc=True)
+    aca = ACAReviewTable(aca)
+    aca.check_guide_count()
+    assert len(aca.messages) == 1
+    msg = aca.messages[0]
+    assert msg['category'] == 'caution'
+    assert 'OR with more than 1 stars brighter than 6.1.' in msg['text']
 
 
 def test_pos_err_on_guide():
@@ -208,20 +262,6 @@ def test_too_bright_guide_magerr():
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
     assert '2*mag_err of 5.8' in msg['text']
-
-
-def test_too_bright_guide_mag_aca_err():
-    """Test the check for too-bright guide stars with small MAG_ACA_ERR"""
-    stars = StarsTable.empty()
-    # Add two stars because separate P2 tests seem to break with just one star
-    stars.add_fake_star(id=100, yang=100, zang=-200, mag=6.0, mag_err=0.02, MAG_ACA_ERR=0)
-    stars.add_fake_star(id=101, yang=0, zang=500, mag=8.0)
-    aca = get_aca_catalog(**mod_std_info(n_fid=0), stars=stars, dark=DARK40, raise_exc=True)
-    aca = ACAReviewTable(aca)
-    aca.check_too_bright_guide(aca.guides.get_id(100))
-    msg = aca.messages[0]
-    assert msg['category'] == 'critical'
-    assert 'small MAG_ACA_ERR' in msg['text']
 
 
 def test_check_fid_spoiler_score():
