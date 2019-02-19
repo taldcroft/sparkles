@@ -61,6 +61,7 @@ def main(sys_args=None):
                              "(default='critical')")
     parser.add_argument('--obsid',
                         action='append',
+                        type=float,
                         help="Process only this obsid (can specify multiple times, default=all")
     parser.add_argument('--quiet',
                         action='store_true',
@@ -128,7 +129,9 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
         if outdir is None:
             if not load_name:
                 raise ValueError('load_name must be provided if outdir is not specified')
-            outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_aca_preview'
+            # Chop any directory path from load_name
+            load_name = Path(load_name).name
+            outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_sparkles'
         outdir = Path(outdir)
         outdir.mkdir(parents=True, exist_ok=True)
 
