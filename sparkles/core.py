@@ -372,6 +372,19 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         if 'maxmag' in self.colnames:
             del self['maxmag']
 
+        # Customizations for ACAReviewTable.  Don't really need 2 decimals on these.
+        for name in ('yang', 'zang', 'row', 'col'):
+            self._default_formats[name] = '.1f'
+
+        # Make mag column have an extra space for catalogs with all mags < 10.0
+        self._default_formats['mag'] = '5.2f'
+
+        if self.colnames[0] != 'idx':
+            # Move 'idx' to first column.  This is really painful currently.
+            self.add_column(Column(self['idx'], name='idx_temp'), index=0)
+            del self['idx']
+            self.rename_column('idx_temp', 'idx')
+
     def run_aca_review(self, *, report_dir=None, report_level='none', roll_level='none'):
         """Do aca review based for this catalog
 
