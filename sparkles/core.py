@@ -12,6 +12,7 @@ import pickle
 from itertools import combinations, chain
 
 import matplotlib
+
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
@@ -25,6 +26,7 @@ from astropy.table import Column, Table
 import proseco
 from proseco.catalog import ACATable
 import proseco.characteristics as ACA
+from proseco.core import MetaAttribute
 
 from . import test as aca_preview_test
 from .roll_optimize import RollOptimizeMixin, guide_count
@@ -75,7 +77,7 @@ def main(sys_args=None):
 
 def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
                    report_level='none', roll_level='none', loud=False,
-                   obsids=None, is_ORs=None):
+                   obsids=None):
     """Do ACA load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
@@ -135,16 +137,7 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
         outdir = Path(outdir)
         outdir.mkdir(parents=True, exist_ok=True)
 
-    # Special case when running a set of rolls for one obsid for the roll
-    # options page.  The obsid in this case is actually roll but need to get
-    # the OR/ER status right.  Setting the roll attribute is just a hint for
-    # report processing to use the word "roll" instead of "obsid".
-    if is_ORs:
-        for aca, is_OR in zip(acas, is_ORs):
-            aca._is_OR = is_OR
-            aca.roll = True
-
-    # Do the pre-review for all the catalogs
+    # Do the sparkles review for all the catalogs
     for aca in acas:
         if not isinstance(aca, ACAReviewTable):
             raise TypeError('input catalog for review must be an ACAReviewTable')
@@ -191,6 +184,12 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
         context['aca_preview_version'] = ACA_PREVIEW_VERSION
         context['acas'] = acas
         context['summary_text'] = get_summary_text(acas)
+
+        # Special case when running a set of roll options for one obsid
+        is_roll_report = all(aca.is_roll_option for aca in acas)
+        context['is_roll_report'] = is_roll_report
+
+        context['id_label'] = 'Roll' if is_roll_report else 'Obsid'
 
         template_file = FILEDIR / 'index_template_preview.html'
         template = Template(open(template_file, 'r').read())
@@ -252,14 +251,14 @@ def get_summary_text(acas):
     :param acas: list of ACATable objects
     :returns: str summary text
     """
-    obsid_strs = [str(aca.obsid) for aca in acas]
-    max_obsid_len = max(len(obsid_str) for obsid_str in obsid_strs)
+    report_id_strs = [str(aca.report_id) for aca in acas]
+    max_obsid_len = max(len(obsid_str) for obsid_str in report_id_strs)
     lines = []
-    for aca, obsid_str in zip(acas, obsid_strs):
-        fill = " " * (max_obsid_len - len(obsid_str))
+    for aca, report_id_str in zip(acas, report_id_strs):
+        fill = " " * (max_obsid_len - len(report_id_str))
         # Is this being generated for a roll options report?
-        ident = 'ROLL' if hasattr(aca, 'roll') else 'OBSID'
-        line = (f'<a href="#id{aca.obsid}">{ident} = {obsid_str}</a>{fill}'
+        ident = 'ROLL' if aca.is_roll_option else 'OBSID'
+        line = (f'<a href="#id{aca.report_id}">{ident} = {report_id_str}</a>{fill}'
                 f' at {aca.date}   '
                 f'{aca.acq_count:.1f} ACQ | {aca.guide_count:.1f} GUI |')
 
@@ -294,7 +293,8 @@ class MessagesList(list):
 
 
 class ACAReviewTable(ACATable, RollOptimizeMixin):
-    # def add_review_methods(cls, aca, *, obsid=None, loud=False):
+    # Whether this instance is a roll option (controls how HTML report page is formatted)
+    is_roll_option = MetaAttribute()
 
     def __init__(self, *args, **kwargs):
         """Init review methods and attrs in ``aca`` object *in-place*.
@@ -312,9 +312,12 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         obsid = kwargs.pop('obsid', None)
         loud = kwargs.pop('loud', False)
+        is_roll_option = kwargs.pop('is_roll_option', False)
 
         # Make a copy of input aca table along with a deepcopy of its meta.
         super().__init__(*args, **kwargs)
+
+        self.is_roll_option = is_roll_option
 
         # Same hack as in __setstate__ (unpickling), namely to force any AcqProbs
         # objects to have the correct weakref to the current self.acqs.  As a reminder
@@ -426,6 +429,10 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         return status
 
     @property
+    def report_id(self):
+        return round(self.att.roll, 2) if self.is_roll_option else self.obsid
+
+    @property
     def thumbs_up(self):
         n_crit_warn = len(self.messages == 'critical') + len(self.messages == 'warning')
         return n_crit_warn == 0
@@ -494,10 +501,9 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         self.roll_options_table = opts_table
 
         # Make a separate preview page for the roll options
-        is_ORs = [aca.obsid < 38000 for aca in acas]
         rolls_dir = self.obsid_dir / 'rolls'
         run_aca_review(f'Obsid {self.obsid} roll options',
-                       acas=acas, outdir=rolls_dir, is_ORs=is_ORs,
+                       acas=acas, outdir=rolls_dir,
                        report_level='none', roll_level='none', loud=False)
 
         # Add in a column with summary of messages in roll options e.g.
