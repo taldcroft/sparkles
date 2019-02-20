@@ -343,6 +343,15 @@ class RollOptimizeMixin:
             q_att_roll = calc_aca_from_targ(q_targ_roll, 0, 0)
 
             kwargs = self.call_args.copy()
+
+            # For roll optimization throw away the include/excludes
+            for k1 in ('include', 'exclude'):
+                for k2 in ('ids', 'halfws'):
+                    for k3 in ('acq', 'guide'):
+                        key = f'{k1}_{k2}_{k3}'
+                        if key in kwargs:
+                            del kwargs[key]
+
             kwargs['att'] = q_att_roll
 
             aca_rolled = get_aca_catalog(**kwargs)
