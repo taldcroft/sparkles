@@ -53,7 +53,7 @@ def test_guide_count_er():
     assert len(aca.messages) == 1
     msg = aca.messages[0]
     assert msg['category'] == 'critical'
-    assert 'ER count of 9th mag guide stars 0.00 < 3.0' in msg['text']
+    assert 'ER count of 9th' in msg['text']
 
     # This configuration should have not enough stars overall
     stars = StarsTable.empty()

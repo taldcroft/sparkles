@@ -20,7 +20,8 @@ from matplotlib.patches import Circle
 import numpy as np
 from Quaternion import Quat
 from jinja2 import Template
-from chandra_aca.transform import yagzag_to_pixels, mag_to_count_rate
+from chandra_aca.transform import (yagzag_to_pixels, mag_to_count_rate,
+                                   snr_mag_for_t_ccd)
 from astropy.table import Column, Table
 
 import proseco
@@ -805,9 +806,12 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         """
         obs_type = 'ER' if self.is_ER else 'OR'
         if self.is_ER and self.guide_count_9th < 3.0:
+            # Determine the threshold 9th mag equivalent value at the effective guide t_ccd
+            mag9 = snr_mag_for_t_ccd(self.guides.t_ccd, 9.0, -10.9)
             self.add_message(
                 'critical',
-                f'{obs_type} count of 9th mag guide stars {self.guide_count_9th:.2f} < 3.0')
+                f'{obs_type} count of 9th ({mag9:.1f} for {self.guides.t_ccd:.1f}C) '
+                f'mag guide stars {self.guide_count_9th:.2f} < 3.0')
 
         count_lim = 4.0 if self.is_OR else 6.0
         if self.guide_count < count_lim:
