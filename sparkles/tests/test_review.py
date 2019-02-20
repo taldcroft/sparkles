@@ -30,14 +30,16 @@ def test_review_catalog(tmpdir):
          'idx': 2,
          'text': 'Guide star imposter offset 2.6, limit 2.5 arcsec'},
         {'category': 'critical', 'text': 'P2: 2.84 less than 3.0 for ER'},
-        {'category': 'critical', 'text': 'ER count of 9th mag guide stars 1.57 < 3.0'}]
+        {'category': 'critical', 'text':
+         'ER count of 9th (8.9 for -9.9C) mag guide stars 1.57 < 3.0'}]
 
     assert acar.roll_options is None
 
     msgs = (acar.messages >= 'critical')
     assert msgs == [
         {'category': 'critical', 'text': 'P2: 2.84 less than 3.0 for ER'},
-        {'category': 'critical', 'text': 'ER count of 9th mag guide stars 1.57 < 3.0'}]
+        {'category': 'critical', 'text':
+         'ER count of 9th (8.9 for -9.9C) mag guide stars 1.57 < 3.0'}]
 
     assert acar.review_status() == -1
 
