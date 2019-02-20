@@ -71,7 +71,7 @@ def test_guide_count_er():
     # And this configuration should have about the bare minumum (of course better
     # to do this with programmatic instead of fixed checks... TODO)
     stars = StarsTable.empty()
-    stars.add_fake_constellation(n_stars=6, mag=[8.5, 8.5, 8.5, 10.0, 10.0, 10.0])
+    stars.add_fake_constellation(n_stars=6, mag=[8.5, 8.5, 8.5, 9.9, 9.9, 9.9])
     aca = get_aca_catalog(**mod_std_info(obsid=50000, n_fid=0, n_guide=8), stars=stars, dark=DARK40,
                           raise_exc=True)
     aca = ACAReviewTable(aca)

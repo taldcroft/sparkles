@@ -1,4 +1,4 @@
-import gc
+import numpy as np
 import pickle
 from pathlib import Path
 
@@ -26,20 +26,19 @@ def test_review_catalog(tmpdir):
     acar = aca.get_review_table()
     acar.run_aca_review()
     assert acar.messages == [
-        {'category': 'warning',
-         'idx': 2,
-         'text': 'Guide star imposter offset 2.6, limit 2.5 arcsec'},
-        {'category': 'critical', 'text': 'P2: 2.84 less than 3.0 for ER'},
-        {'category': 'critical', 'text':
-         'ER count of 9th (8.9 for -9.9C) mag guide stars 1.57 < 3.0'}]
+        {'text': 'Guide star imposter offset 2.6, limit 2.5 arcsec', 'category': 'warning',
+         'idx': 2},
+        {'text': 'P2: 2.84 less than 3.0 for ER', 'category': 'critical'},
+        {'text': 'ER count of 9th (8.9 for -9.9C) mag guide stars 1.91 < 3.0',
+         'category': 'critical'}]
 
     assert acar.roll_options is None
 
     msgs = (acar.messages >= 'critical')
     assert msgs == [
-        {'category': 'critical', 'text': 'P2: 2.84 less than 3.0 for ER'},
-        {'category': 'critical', 'text':
-         'ER count of 9th (8.9 for -9.9C) mag guide stars 1.57 < 3.0'}]
+        {'text': 'P2: 2.84 less than 3.0 for ER', 'category': 'critical'},
+        {'text': 'ER count of 9th (8.9 for -9.9C) mag guide stars 1.91 < 3.0',
+         'category': 'critical'}]
 
     assert acar.review_status() == -1
 
@@ -114,3 +113,27 @@ def test_probs_weak_reference():
 
     assert aca.guides is not acar.guides
     assert aca.acqs is not acar.acqs
+
+
+def test_roll_options_with_include_ids():
+    """
+    Test case from James that was breaking code due to a roll option that puts
+    a force_include star outside the FOV.
+
+    """
+    kwargs = {'obsid': 48397.0,
+              'att': [0.43437703, -0.47822201, -0.68470554, 0.33734053],
+              'date': '2019:053:04:05:33.004', 'detector': 'ACIS-S',
+              'dither_acq': (7.9992, 2.0016), 'dither_guide': (7.9992, 2.0016),
+              'man_angle': 131.2011858838081, 'n_acq': 8, 'n_fid': 0, 'n_guide': 8,
+              'sim_offset': 0.0, 'focus_offset': 0.0, 't_ccd_acq': -12.157792574498563,
+              't_ccd_guide': -12.17,
+              'include_ids_acq': np.array(
+                  [8.13042280e+08, 8.13040960e+08, 8.13044168e+08, 8.12911064e+08,
+                   8.12920176e+08, 8.12913936e+08, 8.13043216e+08, 8.13045352e+08]),
+              'include_halfws_acq': np.array(
+                  [160., 160., 160., 160., 160., 160., 120., 60.])}
+
+    aca = get_aca_catalog(**kwargs)
+    acar = aca.get_review_table()
+    acar.run_aca_review(roll_level='all')
