@@ -105,8 +105,6 @@ def test_probs_weak_reference():
 
     aca2 = pickle.loads(pickle.dumps(aca))
     assert aca2.acqs is not aca.acqs
-    for probs in aca2.acqs.cand_acqs['probs']:
-        assert probs.acqs() is aca2.acqs
 
     # These fail.  TODO: fix!
     # aca2 = aca.__class__(aca)  # default is copy=True
@@ -116,9 +114,3 @@ def test_probs_weak_reference():
 
     assert aca.guides is not acar.guides
     assert aca.acqs is not acar.acqs
-
-    del aca
-    gc.collect()
-
-    for probs in acar.acqs.cand_acqs['probs']:
-        assert probs.acqs() is acar.acqs
