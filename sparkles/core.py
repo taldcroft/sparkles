@@ -187,7 +187,6 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
 
         # Special case when running a set of roll options for one obsid
         is_roll_report = all(aca.is_roll_option for aca in acas)
-        context['is_roll_report'] = is_roll_report
 
         context['id_label'] = 'Roll' if is_roll_report else 'Obsid'
 

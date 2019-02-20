@@ -345,7 +345,6 @@ class RollOptimizeMixin:
             kwargs = self.call_args.copy()
             kwargs['att'] = q_att_roll
 
-            print(kwargs)
             aca_rolled = get_aca_catalog(**kwargs)
 
             P2_rolled = -np.log10(aca_rolled.acqs.calc_p_safe())
