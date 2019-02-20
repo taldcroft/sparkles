@@ -353,6 +353,7 @@ class RollOptimizeMixin:
                             del kwargs[key]
 
             kwargs['att'] = q_att_roll
+            kwargs['raise_exc'] = True
 
             aca_rolled = get_aca_catalog(**kwargs)
 
