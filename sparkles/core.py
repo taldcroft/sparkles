@@ -6,6 +6,7 @@ Preliminary review of ACA catalogs selected by proseco.
 """
 import io
 import re
+import traceback
 from pathlib import Path
 import pickle
 from itertools import combinations, chain
@@ -74,7 +75,8 @@ def main(sys_args=None):
 
 
 def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
-                   report_level='none', roll_level='none', loud=False, obsids=None):
+                   report_level='none', roll_level='none', loud=False, obsids=None,
+                   raise_exc=True):
     """Do ACA load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
@@ -111,8 +113,27 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
     :param loud: print status information during checking
     :param obsids: list of obsids for selecting a subset for review (mostly for debug)
     :param is_ORs: list of is_OR values (for roll options review page)
+    :param raise_exc: if False then catch exception and return traceback as str
+    :returns: str or None: exception traceback message
 
     """
+    try:
+        _run_aca_review(load_name=load_name, acars=acars, make_html=make_html,
+                        report_dir=report_dir, report_level=report_level,
+                        roll_level=roll_level, loud=loud, obsids=obsids)
+    except Exception:
+        if raise_exc:
+            raise
+        exception = traceback.format_exc()
+    else:
+        exception = None
+
+    return exception
+
+
+def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
+                   report_level='none', roll_level='none', loud=False, obsids=None):
+
     if acars is None:
         acars = get_acas_from_pickle(load_name, loud)
 

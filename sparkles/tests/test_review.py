@@ -3,7 +3,7 @@ import pickle
 from pathlib import Path
 
 from proseco import get_aca_catalog
-from ..core import ACAReviewTable
+from ..core import ACAReviewTable, run_aca_review
 
 KWARGS_48464 = {'att': [-0.51759295, -0.30129397, 0.27093045, 0.75360213],
                 'date': '2019:031:13:25:30.000',
@@ -139,3 +139,24 @@ def test_roll_options_with_include_ids():
     acar = aca.get_review_table()
     acar.run_aca_review(roll_level='all')
     assert len(acar.roll_options) > 1
+
+
+def test_catch_exception():
+    exc = run_aca_review(raise_exc=False, load_name='non-existent load name fail fail')
+    assert 'FileNotFoundError: no matching pickle file' in exc
+
+
+def test_run_aca_review_function():
+    aca = get_aca_catalog(**KWARGS_48464)
+    acar = aca.get_review_table()
+    acars = [acar]
+
+    exc = run_aca_review(load_name='test', acars=acars)
+
+    assert exc is None
+    assert acar.messages == [
+        {'text': 'Guide star imposter offset 2.6, limit 2.5 arcsec', 'category': 'warning',
+         'idx': 2},
+        {'text': 'P2: 2.84 less than 3.0 for ER', 'category': 'critical'},
+        {'text': 'ER count of 9th (8.9 for -9.9C) mag guide stars 1.91 < 3.0',
+         'category': 'critical'}]
