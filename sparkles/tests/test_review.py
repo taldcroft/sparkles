@@ -2,8 +2,9 @@ import numpy as np
 import pickle
 from pathlib import Path
 
+import pytest
 from proseco import get_aca_catalog
-from ..core import ACAReviewTable
+from .. import ACAReviewTable, run_aca_review
 
 KWARGS_48464 = {'att': [-0.51759295, -0.30129397, 0.27093045, 0.75360213],
                 'date': '2019:031:13:25:30.000',
@@ -43,7 +44,8 @@ def test_review_catalog(tmpdir):
     assert acar.review_status() == -1
 
     # Check doing a full review for this obsid
-    acar.run_aca_review(report_dir=tmpdir, roll_level='critical', report_level='critical')
+    acar.run_aca_review(make_html=True, report_dir=tmpdir, report_level='critical',
+                        roll_level='critical')
 
     path = Path(str(tmpdir))
     assert (path / 'index.html').exists()
@@ -55,7 +57,7 @@ def test_review_catalog(tmpdir):
 
 def test_review_roll_options(tmpdir):
     """
-    Test that the 'aca' key in the roll_option dict is an ACAReviewTable
+    Test that the 'acar' key in the roll_option dict is an ACAReviewTable
     and that the first one has the same messages as the base (original roll)
     version
 
@@ -80,16 +82,16 @@ def test_review_roll_options(tmpdir):
 
     aca = get_aca_catalog(**kwargs)
     acar = aca.get_review_table()
-    acar.run_aca_review(report_dir=tmpdir, roll_level='critical')
+    acar.run_aca_review(make_html=True, report_dir=tmpdir, roll_level='critical')
 
     assert len(acar.roll_options) == 2
 
     # First roll_option is at the same attitude (and roll) as original.  The check
     # code is run again independently but the outcome should be the same.
-    assert acar.roll_options[0]['aca'].messages == acar.messages
+    assert acar.roll_options[0]['acar'].messages == acar.messages
 
     for opt in acar.roll_options:
-        assert isinstance(opt['aca'], ACAReviewTable)
+        assert isinstance(opt['acar'], ACAReviewTable)
 
 
 def test_probs_weak_reference():
@@ -128,7 +130,7 @@ def test_roll_options_with_include_ids():
               'man_angle': 131.2011858838081, 'n_acq': 8, 'n_fid': 0, 'n_guide': 8,
               'sim_offset': 0.0, 'focus_offset': 0.0, 't_ccd_acq': -12.157792574498563,
               't_ccd_guide': -12.17,
-              'include_ids_acq': np.array(
+              'include_ids_acq': np.array(  # Also tests passing float ids for include
                   [8.13042280e+08, 8.13040960e+08, 8.13044168e+08, 8.12911064e+08,
                    8.12920176e+08, 8.12913936e+08, 8.13043216e+08, 8.13045352e+08]),
               'include_halfws_acq': np.array(
@@ -137,3 +139,38 @@ def test_roll_options_with_include_ids():
     aca = get_aca_catalog(**kwargs)
     acar = aca.get_review_table()
     acar.run_aca_review(roll_level='all')
+    assert len(acar.roll_options) > 1
+
+
+def test_catch_exception_from_function():
+    exc = run_aca_review(raise_exc=False, load_name='non-existent load name fail fail')
+    assert 'FileNotFoundError: no matching pickle file' in exc
+
+    with pytest.raises(FileNotFoundError):
+        exc = run_aca_review(load_name='non-existent load name fail fail')
+
+
+def test_catch_exception_from_method():
+    aca = get_aca_catalog(**KWARGS_48464)
+    acar = aca.get_review_table()
+    exc = acar.run_aca_review(raise_exc=False, roll_level='BAD VALUE')
+    assert 'ValueError: tuple.index(x): x not in tuple' in exc
+
+    with pytest.raises(ValueError):
+        acar.run_aca_review(roll_level='BAD VALUE')
+
+
+def test_run_aca_review_function():
+    aca = get_aca_catalog(**KWARGS_48464)
+    acar = aca.get_review_table()
+    acars = [acar]
+
+    exc = run_aca_review(load_name='test', acars=acars)
+
+    assert exc is None
+    assert acar.messages == [
+        {'text': 'Guide star imposter offset 2.6, limit 2.5 arcsec', 'category': 'warning',
+         'idx': 2},
+        {'text': 'P2: 2.84 less than 3.0 for ER', 'category': 'critical'},
+        {'text': 'ER count of 9th (8.9 for -9.9C) mag guide stars 1.91 < 3.0',
+         'category': 'critical'}]

@@ -9,7 +9,8 @@ from proseco import get_aca_catalog
 from proseco.core import StarsTable
 from proseco.characteristics import CCD
 from proseco.tests.test_common import DARK40, STD_INFO, mod_std_info
-from ..core import ACAReviewTable
+
+from .. import ACAReviewTable
 
 
 def test_check_P2():

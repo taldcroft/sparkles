@@ -6,6 +6,7 @@ Preliminary review of ACA catalogs selected by proseco.
 """
 import io
 import re
+import traceback
 from pathlib import Path
 import pickle
 from itertools import combinations, chain
@@ -17,8 +18,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 
 import numpy as np
-from Quaternion import Quat
 from jinja2 import Template
+from chandra_aca.star_probs import guide_count
 from chandra_aca.transform import (yagzag_to_pixels, mag_to_count_rate,
                                    snr_mag_for_t_ccd)
 from astropy.table import Column, Table
@@ -28,11 +29,9 @@ from proseco.catalog import ACATable
 import proseco.characteristics as ACA
 from proseco.core import MetaAttribute
 
-from . import test as aca_preview_test
-from .roll_optimize import RollOptimizeMixin, guide_count
+from .roll_optimize import RollOptimizeMixin
 
 CACHE = {}
-ACA_PREVIEW_VERSION = aca_preview_test(get_version=True)
 PROSECO_VERSION = proseco.test(get_version=True)
 FILEDIR = Path(__file__).parent
 
@@ -40,15 +39,18 @@ FILEDIR = Path(__file__).parent
 def main(sys_args=None):
     """Command line interface to preview_load()"""
 
+    from . import test
+    version = test(get_version=True)
+
     import argparse
     parser = argparse.ArgumentParser(
-        description=f'ACA preliminary review tool {ACA_PREVIEW_VERSION}')
+        description=f'Sparkles ACA review tool {version}')
     parser.add_argument('load_name',
                         type=str,
                         help='Load name (e.g. JAN2119A) or full file name')
-    parser.add_argument('--outdir',
+    parser.add_argument('--report-dir',
                         type=str,
-                        help='Output directory (default=<load name>')
+                        help='Report output directory (default=<load name>')
     parser.add_argument('--report-level',
                         type=str,
                         default='none',
@@ -70,14 +72,13 @@ def main(sys_args=None):
                         help='Run quietly')
     args = parser.parse_args(sys_args)
 
-    run_aca_review(args.load_name, outdir=args.outdir,
-                   loud=(not args.quiet), report_level=args.report_level,
-                   roll_level=args.roll_level, obsids=args.obsid)
+    run_aca_review(args.load_name, report_dir=args.report_dir, report_level=args.report_level,
+                   roll_level=args.roll_level, loud=(not args.quiet), obsids=args.obsid)
 
 
-def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
-                   report_level='none', roll_level='none', loud=False,
-                   obsids=None):
+def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
+                   report_level='none', roll_level='none', loud=False, obsids=None,
+                   raise_exc=True):
     """Do ACA load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
@@ -106,39 +107,58 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
     "all" which generates a report for every obsid.
 
     :param load_name: name of loads
-    :param acas: list of ACAReviewTable objects (optional)
+    :param acars: list of ACAReviewTable objects (optional)
     :param make_html: make HTML output report
-    :param outdir: output directory
+    :param report_dir: output directory
     :param report_level: report level threshold for generating acq and guide report
     :param roll_level: level threshold for suggesting alternate rolls
     :param loud: print status information during checking
     :param obsids: list of obsids for selecting a subset for review (mostly for debug)
     :param is_ORs: list of is_OR values (for roll options review page)
+    :param raise_exc: if False then catch exception and return traceback (default=True)
+    :returns: exception message: str or None
 
     """
-    if acas is None:
-        acas = get_acas_from_pickle(load_name, loud)
+    try:
+        _run_aca_review(load_name=load_name, acars=acars, make_html=make_html,
+                        report_dir=report_dir, report_level=report_level,
+                        roll_level=roll_level, loud=loud, obsids=obsids)
+    except Exception:
+        if raise_exc:
+            raise
+        exception = traceback.format_exc()
+    else:
+        exception = None
+
+    return exception
+
+
+def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
+                   report_level='none', roll_level='none', loud=False, obsids=None):
+
+    if acars is None:
+        acars = get_acas_from_pickle(load_name, loud)
 
     if obsids:
-        acas = [aca for aca in acas if aca.obsid in obsids]
+        acars = [aca for aca in acars if aca.obsid in obsids]
 
-    if not acas:
+    if not acars:
         raise ValueError('no catalogs founds (check obsid filtering?)')
 
     # Make output directory if needed
     if make_html:
         # Generate outdir from load_name if necessary
-        if outdir is None:
+        if report_dir is None:
             if not load_name:
                 raise ValueError('load_name must be provided if outdir is not specified')
             # Chop any directory path from load_name
             load_name = Path(load_name).name
-            outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_sparkles'
-        outdir = Path(outdir)
-        outdir.mkdir(parents=True, exist_ok=True)
+            report_dir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_sparkles'
+        report_dir = Path(report_dir)
+        report_dir.mkdir(parents=True, exist_ok=True)
 
     # Do the sparkles review for all the catalogs
-    for aca in acas:
+    for aca in acars:
         if not isinstance(aca, ACAReviewTable):
             raise TypeError('input catalog for review must be an ACAReviewTable')
 
@@ -159,7 +179,7 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
             # Output directory for the main prelim review index.html and for this obsid.
             # Note that the obs{aca.obsid} is not flexible because it must match the
             # convention used in ACATable.make_report().  Oops.
-            aca.preview_dir = Path(outdir)
+            aca.preview_dir = Path(report_dir)
             aca.obsid_dir = aca.preview_dir / f'obs{aca.obsid}'
             aca.obsid_dir.mkdir(parents=True, exist_ok=True)
 
@@ -178,15 +198,17 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
 
     # noinspection PyDictCreation
     if make_html:
+        from . import test
+        sparkles_version = test(get_version=True)
         context = {}
         context['load_name'] = load_name.upper()
         context['proseco_version'] = PROSECO_VERSION
-        context['aca_preview_version'] = ACA_PREVIEW_VERSION
-        context['acas'] = acas
-        context['summary_text'] = get_summary_text(acas)
+        context['sparkles_version'] = sparkles_version
+        context['acas'] = acars
+        context['summary_text'] = get_summary_text(acars)
 
         # Special case when running a set of roll options for one obsid
-        is_roll_report = all(aca.is_roll_option for aca in acas)
+        is_roll_report = all(aca.is_roll_option for aca in acars)
 
         context['id_label'] = 'Roll' if is_roll_report else 'Obsid'
 
@@ -194,7 +216,7 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
         template = Template(open(template_file, 'r').read())
         out_html = template.render(context)
 
-        out_filename = outdir / 'index.html'
+        out_filename = report_dir / 'index.html'
         if loud:
             print(f'Writing output review file {out_filename}')
         with open(out_filename, 'w') as fh:
@@ -378,7 +400,8 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             del self['idx']
             self.rename_column('idx_temp', 'idx')
 
-    def run_aca_review(self, *, report_dir=None, report_level='none', roll_level='none'):
+    def run_aca_review(self, *, make_html=False, report_dir='.', report_level='none',
+                       roll_level='none', raise_exc=True):
         """Do aca review based for this catalog
 
         The ``report_level`` arg specifies the message category at which the full
@@ -388,21 +411,22 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         default is "none", meaning no reports are generated.  A final option is
         "all" which generates a report for every obsid.
 
-        :param report_dir: output directory for report
+        :param make_html: make HTML report (default=False)
+        :param report_dir: output directory for report (default='.')
         :param report_level: report level threshold for generating acq and guide report
         :param roll_level: level threshold for suggesting alternate rolls
+        :param raise_exc: if False then catch exception and return traceback (default=True)
+        :returns: exception message: str or None
 
-        :returns: ACAReviewTable object
         """
-        acas = [self]
-
-        make_html = (report_dir is not None)
+        acars = [self]
 
         # Do aca review checks and update acas[0] in place
-        run_aca_review(acas=acas, make_html=make_html, outdir=report_dir,
-                       report_level=report_level, roll_level=roll_level,
-                       load_name=f'Obsid {self.obsid}',
-                       loud=False)
+        exc = run_aca_review(load_name=f'Obsid {self.obsid}', acars=acars, make_html=make_html,
+                             report_dir=report_dir, report_level=report_level,
+                             roll_level=roll_level,
+                             loud=False, raise_exc=raise_exc)
+        return exc
 
     def review_status(self):
         if self.thumbs_up:
@@ -473,11 +497,11 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # Note self.roll_options includes the originally-planned roll case
         # as the first row.
         opts = [opt.copy() for opt in self.roll_options]
-        rolls = [Quat(opt['aca'].att).roll for opt in self.roll_options]
-        acas = [opt['aca'] for opt in opts]
+        rolls = [opt['acar'].att.roll for opt in self.roll_options]
+        acas = [opt['acar'] for opt in opts]
 
         for opt in opts:
-            del opt['aca']
+            del opt['acar']
 
         opts_table = Table(opts, names=['roll', 'P2', 'n_stars', 'improvement',
                                         'roll_min', 'roll_max', 'add_ids', 'drop_ids'])
@@ -488,8 +512,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         # Make a separate preview page for the roll options
         rolls_dir = self.obsid_dir / 'rolls'
-        run_aca_review(f'Obsid {self.obsid} roll options',
-                       acas=acas, outdir=rolls_dir,
+        run_aca_review(f'Obsid {self.obsid} roll options', acars=acas, report_dir=rolls_dir,
                        report_level='none', roll_level='none', loud=False)
 
         # Add in a column with summary of messages in roll options e.g.
@@ -577,7 +600,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         """
         P2 = -np.log10(self.acqs.calc_p_safe())
-        att = Quat(self.att)
+        att = self.att
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
         catalog = '\n'.join(self.pformat(max_width=-1, max_lines=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
@@ -918,8 +941,3 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         if len(self.fids) != self.n_fid:
             msg = f'Catalog has {len(self.fids)} fids but {self.n_fid} are expected'
             self.add_message('critical', msg)
-
-
-# Run from source ``python -m sparkles.preview <load_name> [options]``
-if __name__ == '__main__':
-    main()
