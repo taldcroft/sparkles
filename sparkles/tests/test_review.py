@@ -43,7 +43,15 @@ def test_review_catalog(tmpdir):
 
     assert acar.review_status() == -1
 
+    # Run the review but without making the HTML and ensure review messages
+    # are available on roll options.
+    acar.run_aca_review(roll_level='critical')
+    assert len(acar.roll_options) > 1
+    assert acar.roll_options[0]['acar'].messages == acar.messages
+    assert len(acar.roll_options[1]['acar'].messages) > 0
+
     # Check doing a full review for this obsid
+    acar = aca.get_review_table()
     acar.run_aca_review(make_html=True, report_dir=tmpdir, report_level='critical',
                         roll_level='critical')
 
@@ -82,7 +90,7 @@ def test_review_roll_options(tmpdir):
 
     aca = get_aca_catalog(**kwargs)
     acar = aca.get_review_table()
-    acar.run_aca_review(make_html=True, report_dir=tmpdir, roll_level='critical')
+    acar.run_aca_review(roll_level='critical')
 
     assert len(acar.roll_options) == 2
 
