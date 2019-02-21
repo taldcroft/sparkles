@@ -113,8 +113,8 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
     :param loud: print status information during checking
     :param obsids: list of obsids for selecting a subset for review (mostly for debug)
     :param is_ORs: list of is_OR values (for roll options review page)
-    :param raise_exc: if False then catch exception and return traceback as str
-    :returns: str or None: exception traceback message
+    :param raise_exc: if False then catch exception and return traceback (default=True)
+    :returns: exception message: str or None
 
     """
     try:
@@ -397,7 +397,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             self.rename_column('idx_temp', 'idx')
 
     def run_aca_review(self, *, make_html=False, report_dir='.', report_level='none',
-                       roll_level='none'):
+                       roll_level='none', raise_exc=True):
         """Do aca review based for this catalog
 
         The ``report_level`` arg specifies the message category at which the full
@@ -411,15 +411,18 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         :param report_dir: output directory for report (default='.')
         :param report_level: report level threshold for generating acq and guide report
         :param roll_level: level threshold for suggesting alternate rolls
+        :param raise_exc: if False then catch exception and return traceback (default=True)
+        :returns: exception message: str or None
 
-        :returns: ACAReviewTable object
         """
-        acas = [self]
+        acars = [self]
 
         # Do aca review checks and update acas[0] in place
-        run_aca_review(load_name=f'Obsid {self.obsid}', acars=acas, make_html=make_html,
-                       report_dir=report_dir, report_level=report_level, roll_level=roll_level,
-                       loud=False)
+        exc = run_aca_review(load_name=f'Obsid {self.obsid}', acars=acars, make_html=make_html,
+                             report_dir=report_dir, report_level=report_level,
+                             roll_level=roll_level,
+                             loud=False, raise_exc=raise_exc)
+        return exc
 
     def review_status(self):
         if self.thumbs_up:

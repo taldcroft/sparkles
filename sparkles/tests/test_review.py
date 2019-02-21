@@ -2,6 +2,7 @@ import numpy as np
 import pickle
 from pathlib import Path
 
+import pytest
 from proseco import get_aca_catalog
 from ..core import ACAReviewTable, run_aca_review
 
@@ -141,9 +142,22 @@ def test_roll_options_with_include_ids():
     assert len(acar.roll_options) > 1
 
 
-def test_catch_exception():
+def test_catch_exception_from_function():
     exc = run_aca_review(raise_exc=False, load_name='non-existent load name fail fail')
     assert 'FileNotFoundError: no matching pickle file' in exc
+
+    with pytest.raises(FileNotFoundError):
+        exc = run_aca_review(load_name='non-existent load name fail fail')
+
+
+def test_catch_exception_from_method():
+    aca = get_aca_catalog(**KWARGS_48464)
+    acar = aca.get_review_table()
+    exc = acar.run_aca_review(raise_exc=False, roll_level='BAD VALUE')
+    assert 'ValueError: tuple.index(x): x not in tuple' in exc
+
+    with pytest.raises(ValueError):
+        acar.run_aca_review(roll_level='BAD VALUE')
 
 
 def test_run_aca_review_function():
