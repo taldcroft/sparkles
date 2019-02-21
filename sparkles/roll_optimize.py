@@ -10,7 +10,7 @@ import numpy as np
 import warnings
 
 from astropy.table import Table, vstack
-from chandra_aca.star_probs import acq_success_prob
+from chandra_aca.star_probs import acq_success_prob, guide_count
 from chandra_aca.transform import (radec_to_yagzag, yagzag_to_pixels,
                                    calc_aca_from_targ, calc_targ_from_aca,
                                    snr_mag_for_t_ccd)
@@ -22,41 +22,6 @@ from proseco import get_aca_catalog
 
 ROLL_TABLE = Table.read(str(Path(__file__).parent / 'pitch_rolldev.csv'), format='ascii.basic',
                         guess=False, delimiter=',')
-
-
-# Grab from chandra_aca PR #71
-def guide_count(mags, t_ccd, is_ER=False):
-    """Calculate a guide star fractional count/metric using signal-to-noise scaled
-    mag thresholds.
-    This uses a modification of the guide star fractional counts that were
-    suggested at the 7-Mar-2018 SSAWG and agreed upon at the 21-Mar-2018
-    SSAWG.  The implementation here does a piecewise linear interpolation
-    between the reference mag - fractional count points instead of the
-    original "threshold interpolation" (nearest neighbor mag <= reference
-    mag).  Approved at 16-Jan-2019 SSAWG.
-    One feature is the slight incline in the guide_count curve from 1.0005 at
-    mag=6.0 to 1.0 at mag=10.0.  This does not show up in standard outputs
-    of guide_counts to two decimal places (8 * 0.0005 = 0.004), but helps with
-    minimization.
-    :returns: fractional count
-    """
-    # Generate interpolation curve for the specified input ``t_ccd``
-    ref_t_ccd = -10.9
-    ref_mags0 = np.array([10.0, 10.2, 10.3, 10.4]) - (1.2 if is_ER else 0.0)
-    ref_mags_t_ccd = [snr_mag_for_t_ccd(t_ccd, ref_mag, ref_t_ccd) for ref_mag in ref_mags0]
-
-    # The 5.85 and 5.95 limits are not temperature dependent, these reflect the
-    # possibility that the star will be brighter than 5.8 mag and the OBC will
-    # reject it.  Note that around 6th mag mean observed catalog error is
-    # around 0.1 mag.
-    ref_mags = ([5.85, 5.95] + ref_mags_t_ccd)
-    ref_counts = [0.0, 1.0005, 1.0, 0.75, 0.5, 0.0]
-
-    # Do the interpolation, noting that np.interp will use the end ``counts``
-    # values for any ``mag`` < ref_mags[0] or > ref_mags[-1].
-    count = np.sum(np.interp(mags, ref_mags, ref_counts))
-
-    return count
 
 
 def allowed_rolldev(pitch):
@@ -343,13 +308,23 @@ class RollOptimizeMixin:
             q_att_roll = calc_aca_from_targ(q_targ_roll, 0, 0)
 
             kwargs = self.call_args.copy()
+
+            # For roll optimization throw away the include/excludes
+            for k1 in ('include', 'exclude'):
+                for k2 in ('ids', 'halfws'):
+                    for k3 in ('acq', 'guide'):
+                        key = f'{k1}_{k2}_{k3}'
+                        if key in kwargs:
+                            del kwargs[key]
+
             kwargs['att'] = q_att_roll
+            kwargs['raise_exc'] = True
 
             aca_rolled = get_aca_catalog(**kwargs)
 
             P2_rolled = -np.log10(aca_rolled.acqs.calc_p_safe())
             n_stars_rolled = guide_count(aca_rolled.guides['mag'], aca_rolled.guides.t_ccd,
-                                         self.is_ER)
+                                         count_9th=self.is_ER)
 
             improvement = improve_metric(n_stars, P2, n_stars_rolled, P2_rolled)
 

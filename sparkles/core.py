@@ -6,7 +6,6 @@ Preliminary review of ACA catalogs selected by proseco.
 """
 import io
 import re
-import weakref
 from pathlib import Path
 import pickle
 from itertools import combinations, chain
@@ -318,19 +317,6 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         super().__init__(*args, **kwargs)
 
         self.is_roll_option = is_roll_option
-
-        # Same hack as in __setstate__ (unpickling), namely to force any AcqProbs
-        # objects to have the correct weakref to the current self.acqs.  As a reminder
-        # the AcqProbs objects are found in the 'probs' column of self.acqs.cand_acqs.
-        # The self.acqs['probs'] objects are just refs to the cand_acqs['probs'] ones.
-        #
-        # The _base_repr_ method of the base class does some trickery to normally display
-        # the "interesting" columns with default formatting applied. This actually creates
-        # a temporary table of this class with the right columns, but without any meta.  In
-        # that case self.acqs will be None.
-        if self.acqs is not None:
-            for probs in self.acqs.cand_acqs['probs']:
-                probs.acqs = weakref.ref(self.acqs)
 
         # Add row and col columns from yag/zag, if not already there.
         self.add_row_col()
