@@ -46,9 +46,9 @@ def main(sys_args=None):
     parser.add_argument('load_name',
                         type=str,
                         help='Load name (e.g. JAN2119A) or full file name')
-    parser.add_argument('--outdir',
+    parser.add_argument('--report-dir',
                         type=str,
-                        help='Output directory (default=<load name>')
+                        help='Report output directory (default=<load name>')
     parser.add_argument('--report-level',
                         type=str,
                         default='none',
@@ -70,14 +70,12 @@ def main(sys_args=None):
                         help='Run quietly')
     args = parser.parse_args(sys_args)
 
-    run_aca_review(args.load_name, outdir=args.outdir,
-                   loud=(not args.quiet), report_level=args.report_level,
-                   roll_level=args.roll_level, obsids=args.obsid)
+    run_aca_review(args.load_name, report_dir=args.report_dir, report_level=args.report_level,
+                   roll_level=args.roll_level, loud=(not args.quiet), obsids=args.obsid)
 
 
-def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
-                   report_level='none', roll_level='none', loud=False,
-                   obsids=None):
+def run_aca_review(load_name=None, *, acas=None, make_html=True, report_dir=None,
+                   report_level='none', roll_level='none', loud=False, obsids=None):
     """Do ACA load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
@@ -108,7 +106,7 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
     :param load_name: name of loads
     :param acas: list of ACAReviewTable objects (optional)
     :param make_html: make HTML output report
-    :param outdir: output directory
+    :param report_dir: output directory
     :param report_level: report level threshold for generating acq and guide report
     :param roll_level: level threshold for suggesting alternate rolls
     :param loud: print status information during checking
@@ -128,14 +126,14 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
     # Make output directory if needed
     if make_html:
         # Generate outdir from load_name if necessary
-        if outdir is None:
+        if report_dir is None:
             if not load_name:
                 raise ValueError('load_name must be provided if outdir is not specified')
             # Chop any directory path from load_name
             load_name = Path(load_name).name
-            outdir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_sparkles'
-        outdir = Path(outdir)
-        outdir.mkdir(parents=True, exist_ok=True)
+            report_dir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_sparkles'
+        report_dir = Path(report_dir)
+        report_dir.mkdir(parents=True, exist_ok=True)
 
     # Do the sparkles review for all the catalogs
     for aca in acas:
@@ -159,7 +157,7 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
             # Output directory for the main prelim review index.html and for this obsid.
             # Note that the obs{aca.obsid} is not flexible because it must match the
             # convention used in ACATable.make_report().  Oops.
-            aca.preview_dir = Path(outdir)
+            aca.preview_dir = Path(report_dir)
             aca.obsid_dir = aca.preview_dir / f'obs{aca.obsid}'
             aca.obsid_dir.mkdir(parents=True, exist_ok=True)
 
@@ -194,7 +192,7 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, outdir=None,
         template = Template(open(template_file, 'r').read())
         out_html = template.render(context)
 
-        out_filename = outdir / 'index.html'
+        out_filename = report_dir / 'index.html'
         if loud:
             print(f'Writing output review file {out_filename}')
         with open(out_filename, 'w') as fh:
@@ -399,9 +397,8 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         make_html = (report_dir is not None)
 
         # Do aca review checks and update acas[0] in place
-        run_aca_review(acas=acas, make_html=make_html, outdir=report_dir,
-                       report_level=report_level, roll_level=roll_level,
-                       load_name=f'Obsid {self.obsid}',
+        run_aca_review(load_name=f'Obsid {self.obsid}', acas=acas, make_html=make_html,
+                       report_dir=report_dir, report_level=report_level, roll_level=roll_level,
                        loud=False)
 
     def review_status(self):
@@ -488,8 +485,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         # Make a separate preview page for the roll options
         rolls_dir = self.obsid_dir / 'rolls'
-        run_aca_review(f'Obsid {self.obsid} roll options',
-                       acas=acas, outdir=rolls_dir,
+        run_aca_review(f'Obsid {self.obsid} roll options', acas=acas, report_dir=rolls_dir,
                        report_level='none', roll_level='none', loud=False)
 
         # Add in a column with summary of messages in roll options e.g.
