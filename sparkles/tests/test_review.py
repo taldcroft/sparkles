@@ -56,7 +56,7 @@ def test_review_catalog(tmpdir):
 
 def test_review_roll_options(tmpdir):
     """
-    Test that the 'aca' key in the roll_option dict is an ACAReviewTable
+    Test that the 'acar' key in the roll_option dict is an ACAReviewTable
     and that the first one has the same messages as the base (original roll)
     version
 
@@ -87,10 +87,10 @@ def test_review_roll_options(tmpdir):
 
     # First roll_option is at the same attitude (and roll) as original.  The check
     # code is run again independently but the outcome should be the same.
-    assert acar.roll_options[0]['aca'].messages == acar.messages
+    assert acar.roll_options[0]['acar'].messages == acar.messages
 
     for opt in acar.roll_options:
-        assert isinstance(opt['aca'], ACAReviewTable)
+        assert isinstance(opt['acar'], ACAReviewTable)
 
 
 def test_probs_weak_reference():

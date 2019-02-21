@@ -292,7 +292,7 @@ class RollOptimizeMixin:
         # Special case, first roll option is self but with obsid set to roll
         acar = deepcopy(self)
         acar.is_roll_option = True
-        roll_options = [{'aca': acar,
+        roll_options = [{'acar': acar,
                          'P2': P2,
                          'n_stars': n_stars,
                          'improvement': 0.0,
@@ -329,8 +329,8 @@ class RollOptimizeMixin:
             improvement = improve_metric(n_stars, P2, n_stars_rolled, P2_rolled)
 
             if improvement > 0.3:
-                roll_option = {'aca': self.__class__(aca_rolled, obsid=self.obsid,
-                                                     is_roll_option=True),
+                roll_option = {'acar': self.__class__(aca_rolled, obsid=self.obsid,
+                                                      is_roll_option=True),
                                'P2': P2_rolled,
                                'n_stars': n_stars_rolled,
                                'improvement': improvement}

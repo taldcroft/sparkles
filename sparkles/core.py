@@ -74,7 +74,7 @@ def main(sys_args=None):
                    roll_level=args.roll_level, loud=(not args.quiet), obsids=args.obsid)
 
 
-def run_aca_review(load_name=None, *, acas=None, make_html=True, report_dir=None,
+def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
                    report_level='none', roll_level='none', loud=False, obsids=None):
     """Do ACA load review based on proseco pickle file from ORviewer.
 
@@ -104,7 +104,7 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, report_dir=None
     "all" which generates a report for every obsid.
 
     :param load_name: name of loads
-    :param acas: list of ACAReviewTable objects (optional)
+    :param acars: list of ACAReviewTable objects (optional)
     :param make_html: make HTML output report
     :param report_dir: output directory
     :param report_level: report level threshold for generating acq and guide report
@@ -114,13 +114,13 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, report_dir=None
     :param is_ORs: list of is_OR values (for roll options review page)
 
     """
-    if acas is None:
-        acas = get_acas_from_pickle(load_name, loud)
+    if acars is None:
+        acars = get_acas_from_pickle(load_name, loud)
 
     if obsids:
-        acas = [aca for aca in acas if aca.obsid in obsids]
+        acars = [aca for aca in acars if aca.obsid in obsids]
 
-    if not acas:
+    if not acars:
         raise ValueError('no catalogs founds (check obsid filtering?)')
 
     # Make output directory if needed
@@ -136,7 +136,7 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, report_dir=None
         report_dir.mkdir(parents=True, exist_ok=True)
 
     # Do the sparkles review for all the catalogs
-    for aca in acas:
+    for aca in acars:
         if not isinstance(aca, ACAReviewTable):
             raise TypeError('input catalog for review must be an ACAReviewTable')
 
@@ -180,11 +180,11 @@ def run_aca_review(load_name=None, *, acas=None, make_html=True, report_dir=None
         context['load_name'] = load_name.upper()
         context['proseco_version'] = PROSECO_VERSION
         context['aca_preview_version'] = ACA_PREVIEW_VERSION
-        context['acas'] = acas
-        context['summary_text'] = get_summary_text(acas)
+        context['acas'] = acars
+        context['summary_text'] = get_summary_text(acars)
 
         # Special case when running a set of roll options for one obsid
-        is_roll_report = all(aca.is_roll_option for aca in acas)
+        is_roll_report = all(aca.is_roll_option for aca in acars)
 
         context['id_label'] = 'Roll' if is_roll_report else 'Obsid'
 
@@ -397,7 +397,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         acas = [self]
 
         # Do aca review checks and update acas[0] in place
-        run_aca_review(load_name=f'Obsid {self.obsid}', acas=acas, make_html=make_html,
+        run_aca_review(load_name=f'Obsid {self.obsid}', acars=acas, make_html=make_html,
                        report_dir=report_dir, report_level=report_level, roll_level=roll_level,
                        loud=False)
 
@@ -470,11 +470,11 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # Note self.roll_options includes the originally-planned roll case
         # as the first row.
         opts = [opt.copy() for opt in self.roll_options]
-        rolls = [Quat(opt['aca'].att).roll for opt in self.roll_options]
-        acas = [opt['aca'] for opt in opts]
+        rolls = [Quat(opt['acar'].att).roll for opt in self.roll_options]
+        acas = [opt['acar'] for opt in opts]
 
         for opt in opts:
-            del opt['aca']
+            del opt['acar']
 
         opts_table = Table(opts, names=['roll', 'P2', 'n_stars', 'improvement',
                                         'roll_min', 'roll_max', 'add_ids', 'drop_ids'])
@@ -485,7 +485,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         # Make a separate preview page for the roll options
         rolls_dir = self.obsid_dir / 'rolls'
-        run_aca_review(f'Obsid {self.obsid} roll options', acas=acas, report_dir=rolls_dir,
+        run_aca_review(f'Obsid {self.obsid} roll options', acars=acas, report_dir=rolls_dir,
                        report_level='none', roll_level='none', loud=False)
 
         # Add in a column with summary of messages in roll options e.g.
