@@ -63,7 +63,7 @@ def test_review_catalog(tmpdir):
     assert (obspath / 'rolls' / 'index.html').exists()
 
 
-def test_review_roll_options(tmpdir):
+def test_review_roll_options():
     """
     Test that the 'acar' key in the roll_option dict is an ACAReviewTable
     and that the first one has the same messages as the base (original roll)
