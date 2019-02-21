@@ -150,7 +150,7 @@ class RollOptimizeMixin:
         guides.meta.clear()
         cands = vstack([acqs, guides, self.stars[cols][cand_idxs]])
 
-        q_att = Quat(self.att)
+        q_att = self.att
 
         def get_ids_list(roll_offsets):
             ids_list = []
@@ -286,7 +286,7 @@ class RollOptimizeMixin:
         cand_idxs = self.get_candidate_better_stars()
         roll_intervals, self.roll_info = self.get_roll_intervals(cand_idxs)
 
-        q_att = Quat(self.att)
+        q_att = self.att
         q_targ = calc_targ_from_aca(q_att, 0, 0)
 
         # Special case, first roll option is self but with obsid set to roll

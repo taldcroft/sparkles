@@ -17,7 +17,6 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 
 import numpy as np
-from Quaternion import Quat
 from jinja2 import Template
 from chandra_aca.transform import (yagzag_to_pixels, mag_to_count_rate,
                                    snr_mag_for_t_ccd)
@@ -470,7 +469,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # Note self.roll_options includes the originally-planned roll case
         # as the first row.
         opts = [opt.copy() for opt in self.roll_options]
-        rolls = [Quat(opt['acar'].att).roll for opt in self.roll_options]
+        rolls = [opt['acar'].att.roll for opt in self.roll_options]
         acas = [opt['acar'] for opt in opts]
 
         for opt in opts:
@@ -573,7 +572,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         """
         P2 = -np.log10(self.acqs.calc_p_safe())
-        att = Quat(self.att)
+        att = self.att
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
         catalog = '\n'.join(self.pformat(max_width=-1, max_lines=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
