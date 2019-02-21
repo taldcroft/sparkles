@@ -19,6 +19,7 @@ from matplotlib.patches import Circle
 
 import numpy as np
 from jinja2 import Template
+from chandra_aca.star_probs import guide_count
 from chandra_aca.transform import (yagzag_to_pixels, mag_to_count_rate,
                                    snr_mag_for_t_ccd)
 from astropy.table import Column, Table
@@ -28,11 +29,9 @@ from proseco.catalog import ACATable
 import proseco.characteristics as ACA
 from proseco.core import MetaAttribute
 
-from . import test as aca_preview_test
-from .roll_optimize import RollOptimizeMixin, guide_count
+from .roll_optimize import RollOptimizeMixin
 
 CACHE = {}
-ACA_PREVIEW_VERSION = aca_preview_test(get_version=True)
 PROSECO_VERSION = proseco.test(get_version=True)
 FILEDIR = Path(__file__).parent
 
@@ -40,9 +39,12 @@ FILEDIR = Path(__file__).parent
 def main(sys_args=None):
     """Command line interface to preview_load()"""
 
+    from . import test
+    version = test(get_version=True)
+
     import argparse
     parser = argparse.ArgumentParser(
-        description=f'ACA preliminary review tool {ACA_PREVIEW_VERSION}')
+        description=f'Sparkles ACA review tool {version}')
     parser.add_argument('load_name',
                         type=str,
                         help='Load name (e.g. JAN2119A) or full file name')
@@ -196,10 +198,12 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
 
     # noinspection PyDictCreation
     if make_html:
+        from . import test
+        sparkles_version = test(get_version=True)
         context = {}
         context['load_name'] = load_name.upper()
         context['proseco_version'] = PROSECO_VERSION
-        context['aca_preview_version'] = ACA_PREVIEW_VERSION
+        context['sparkles_version'] = sparkles_version
         context['acas'] = acars
         context['summary_text'] = get_summary_text(acars)
 
@@ -937,8 +941,3 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
         if len(self.fids) != self.n_fid:
             msg = f'Catalog has {len(self.fids)} fids but {self.n_fid} are expected'
             self.add_message('critical', msg)
-
-
-# Run from source ``python -m sparkles.preview <load_name> [options]``
-if __name__ == '__main__':
-    main()

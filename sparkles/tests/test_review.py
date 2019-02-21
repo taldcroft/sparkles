@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from proseco import get_aca_catalog
-from ..core import ACAReviewTable, run_aca_review
+from .. import ACAReviewTable, run_aca_review
 
 KWARGS_48464 = {'att': [-0.51759295, -0.30129397, 0.27093045, 0.75360213],
                 'date': '2019:031:13:25:30.000',

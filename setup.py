@@ -7,11 +7,11 @@ try:
 except ImportError:
     cmdclass = {}
 
-entry_points = {'console_scripts': ['sparkles=sparkles.preview:main']}
+entry_points = {'console_scripts': ['sparkles=sparkles.core:main']}
 
 setup(name='sparkles',
       author='Tom Aldcroft',
-      description='ACA prelim products review',
+      description='Sparkles ACA review package',
       author_email='taldcroft@cfa.harvard.edu',
       version=__version__,
       zip_safe=False,
