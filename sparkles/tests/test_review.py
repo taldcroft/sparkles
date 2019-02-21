@@ -43,7 +43,8 @@ def test_review_catalog(tmpdir):
     assert acar.review_status() == -1
 
     # Check doing a full review for this obsid
-    acar.run_aca_review(report_dir=tmpdir, roll_level='critical', report_level='critical')
+    acar.run_aca_review(make_html=True, report_dir=tmpdir, report_level='critical',
+                        roll_level='critical')
 
     path = Path(str(tmpdir))
     assert (path / 'index.html').exists()
@@ -80,7 +81,7 @@ def test_review_roll_options(tmpdir):
 
     aca = get_aca_catalog(**kwargs)
     acar = aca.get_review_table()
-    acar.run_aca_review(report_dir=tmpdir, roll_level='critical')
+    acar.run_aca_review(make_html=True, report_dir=tmpdir, roll_level='critical')
 
     assert len(acar.roll_options) == 2
 
@@ -128,7 +129,7 @@ def test_roll_options_with_include_ids():
               'man_angle': 131.2011858838081, 'n_acq': 8, 'n_fid': 0, 'n_guide': 8,
               'sim_offset': 0.0, 'focus_offset': 0.0, 't_ccd_acq': -12.157792574498563,
               't_ccd_guide': -12.17,
-              'include_ids_acq': np.array(
+              'include_ids_acq': np.array(  # Also tests passing float ids for include
                   [8.13042280e+08, 8.13040960e+08, 8.13044168e+08, 8.12911064e+08,
                    8.12920176e+08, 8.12913936e+08, 8.13043216e+08, 8.13045352e+08]),
               'include_halfws_acq': np.array(
@@ -137,3 +138,4 @@ def test_roll_options_with_include_ids():
     aca = get_aca_catalog(**kwargs)
     acar = aca.get_review_table()
     acar.run_aca_review(roll_level='all')
+    assert len(acar.roll_options) > 1

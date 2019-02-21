@@ -376,7 +376,8 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
             del self['idx']
             self.rename_column('idx_temp', 'idx')
 
-    def run_aca_review(self, *, report_dir=None, report_level='none', roll_level='none'):
+    def run_aca_review(self, *, make_html=False, report_dir='.', report_level='none',
+                       roll_level='none'):
         """Do aca review based for this catalog
 
         The ``report_level`` arg specifies the message category at which the full
@@ -386,15 +387,14 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         default is "none", meaning no reports are generated.  A final option is
         "all" which generates a report for every obsid.
 
-        :param report_dir: output directory for report
+        :param make_html: make HTML report (default=False)
+        :param report_dir: output directory for report (default='.')
         :param report_level: report level threshold for generating acq and guide report
         :param roll_level: level threshold for suggesting alternate rolls
 
         :returns: ACAReviewTable object
         """
         acas = [self]
-
-        make_html = (report_dir is not None)
 
         # Do aca review checks and update acas[0] in place
         run_aca_review(load_name=f'Obsid {self.obsid}', acas=acas, make_html=make_html,
