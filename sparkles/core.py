@@ -4,6 +4,7 @@
 """
 Preliminary review of ACA catalogs selected by proseco.
 """
+import gzip
 import io
 import re
 import traceback
@@ -153,7 +154,7 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
                 raise ValueError('load_name must be provided if outdir is not specified')
             # Chop any directory path from load_name
             load_name = Path(load_name).name
-            report_dir = re.sub(r'(_proseco)?.pkl', '', load_name) + '_sparkles'
+            report_dir = re.sub(r'(_proseco)?.pkl(.gz)?', '', load_name) + '_sparkles'
         report_dir = Path(report_dir)
         report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -237,19 +238,30 @@ def stylize(text, category):
 def get_acas_from_pickle(load_name, loud=False):
     """Get dict of proseco ACATable pickles for ``load_name``
 
-    Note that ``load_name`` can be a Table with columns ``obsid``
-    and ``aca`` (ACATable catalog object).
+    ``load_name`` can be a full file name (ending in .pkl or .pkl.gz) or any of the
+     following, which are tried in order:
 
-    :param load_name: load name or Table (see preview_load() doc for details)
+    - <load_name>_proseco.pkl.gz
+    - <load_name>.pkl.gz
+    - <load_name>_proseco.pkl
+    - <load_name>.pkl
+
+    :param load_name: load name
     :param loud: print processing information
     """
-    filenames = [load_name, f'{load_name}_proseco.pkl', f'{load_name}.pkl']
+    filenames = [load_name,
+                 f'{load_name}_proseco.pkl.gz', f'{load_name}.pkl.gz',
+                 f'{load_name}_proseco.pkl', f'{load_name}.pkl']
     for filename in filenames:
         pth = Path(filename)
-        if pth.exists() and pth.is_file() and pth.suffix == '.pkl':
+        if pth.exists() and pth.is_file() and pth.suffixes in (['.pkl'], ['.pkl', '.gz']):
             if loud:
                 print(f'Reading pickle file {filename}')
-            acas_dict = pickle.load(open(filename, 'rb'))
+
+            open_func = open if pth.suffix == '.pkl' else gzip.open
+            with open_func(filename, 'rb') as fh:
+                acas_dict = pickle.load(fh)
+
             break
     else:
         raise FileNotFoundError(f'no matching pickle file {filenames}')
