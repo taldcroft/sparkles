@@ -843,6 +843,13 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
                 'caution',
                 f'{obs_type} with more than {bright_cnt_lim} stars brighter than 6.1.')
 
+        if len(self.guides) < self.n_guide:
+            self.add_message(
+                'caution',
+                f'{obs_type} with fewer guide stars selected ({len(self.guides)}) '
+                f'than requested ({self.n_guide}).')
+
+
     def check_pos_err_guide(self, star):
         """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
 
