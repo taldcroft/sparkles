@@ -40,7 +40,22 @@ def test_check_P2():
     assert 'less than 3.0 for ER' in msg['text']
 
 
-def test_n_guide_check():
+def test_n_guide_check_not_enough_stars():
+    """Test the check that number of guide stars selected is typical"""
+
+    stars = StarsTable.empty()
+    stars.add_fake_constellation(n_stars=4, mag=8.5)
+    aca = get_aca_catalog(**mod_std_info(n_fid=3, n_guide=5, obsid=5000),
+                          stars=stars, dark=DARK40,
+                          raise_exc=True)
+    acar = ACAReviewTable(aca)
+    acar.check_guide_count()
+    assert acar.messages == [
+        {'text': 'OR with 4 guides but 5 were requested',
+         'category': 'caution'}]
+
+
+def test_n_guide_check_atypical_request():
     """Test the check that number of guide stars selected is typical"""
 
     stars = StarsTable.empty()
@@ -51,10 +66,11 @@ def test_n_guide_check():
     acar = ACAReviewTable(aca)
     acar.check_guide_count()
     assert acar.messages == [
-        {'text': 'Catalog has 4 guide stars but 5 is typical.', 's'}
-    ]
+        {'text': 'OR with 4 guides requested but 5 is typical (likely MON star, check OR list)',
+         'category': 'caution'}]
 
-def test_guide_count_er():
+
+def test_guide_count_er1():
     """Test the check that an ER has enough fractional guide stars by guide_count"""
 
     # This configuration should have not enough bright stars
@@ -70,6 +86,8 @@ def test_guide_count_er():
     assert msg['category'] == 'critical'
     assert 'ER count of 9th' in msg['text']
 
+
+def test_guide_count_er2():
     # This configuration should have not enough stars overall
     stars = StarsTable.empty()
     stars.add_fake_constellation(n_stars=3, mag=[8.5, 8.5, 8.5])
@@ -78,11 +96,12 @@ def test_guide_count_er():
                           raise_exc=True)
     aca = ACAReviewTable(aca)
     aca.check_guide_count()
-    assert len(aca.messages) == 1
-    msg = aca.messages[0]
-    assert msg['category'] == 'critical'
-    assert 'ER count of guide stars 3.00 < 6.0' in msg['text']
+    assert aca.messages == [
+        {'text': 'ER count of guide stars 3.00 < 6.0', 'category': 'critical'},
+        {'text': 'ER with 3 guides but 8 were requested', 'category': 'caution'}]
 
+
+def test_guide_count_er3():
     # And this configuration should have about the bare minumum (of course better
     # to do this with programmatic instead of fixed checks... TODO)
     stars = StarsTable.empty()
@@ -91,8 +110,11 @@ def test_guide_count_er():
                           raise_exc=True)
     aca = ACAReviewTable(aca)
     aca.check_guide_count()
-    assert len(aca.messages) == 0
+    assert aca.messages == [
+        {'text': 'ER with 6 guides but 8 were requested', 'category': 'caution'}]
 
+
+def test_guide_count_er4():
     # This configuration should not warn with too many really bright stars
     # (allowed to have 3 stars brighter than 6.1)
     stars = StarsTable.empty()
@@ -104,8 +126,11 @@ def test_guide_count_er():
                           raise_exc=True)
     aca = ACAReviewTable(aca)
     aca.check_guide_count()
-    assert len(aca.messages) == 0
+    assert aca.messages == [
+        {'text': 'ER with 6 guides but 8 were requested', 'category': 'caution'}]
 
+
+def test_guide_count_er5():
     # This configuration should warn with too many bright stars
     # (has > 3.0 stars brighter than 6.1
     stars = StarsTable.empty()
@@ -116,10 +141,9 @@ def test_guide_count_er():
                           raise_exc=True)
     aca = ACAReviewTable(aca)
     aca.check_guide_count()
-    assert len(aca.messages) == 1
-    msg = aca.messages[0]
-    assert msg['category'] == 'caution'
-    assert 'ER with more than 3 stars brighter than 6.1.' in msg['text']
+    assert aca.messages == [
+        {'text': 'ER with more than 3 stars brighter than 6.1.', 'category': 'caution'},
+        {'text': 'ER with 6 guides but 8 were requested', 'category': 'caution'}]
 
 
 def test_guide_count_or():
@@ -130,10 +154,9 @@ def test_guide_count_or():
                           raise_exc=True)
     aca = ACAReviewTable(aca)
     aca.check_guide_count()
-    assert len(aca.messages) == 1
-    msg = aca.messages[0]
-    assert msg['category'] == 'critical'
-    assert 'OR count of guide stars 2.00 < 4.0' in msg['text']
+    assert aca.messages == [
+        {'text': 'OR count of guide stars 2.00 < 4.0', 'category': 'critical'},
+        {'text': 'OR with 2 guides but 5 were requested', 'category': 'caution'}]
 
     # This configuration should not warn with too many really bright stars
     # (allowed to have 1 stars brighter than 6.1)
@@ -144,7 +167,8 @@ def test_guide_count_or():
                           raise_exc=True)
     aca = ACAReviewTable(aca)
     aca.check_guide_count()
-    assert len(aca.messages) == 0
+    assert aca.messages == [
+        {'text': 'OR with 4 guides but 5 were requested', 'category': 'caution'}]
 
     # This configuration should warn with too many bright stars
     # (has > 1.0 stars brighter than 6.1
@@ -208,7 +232,7 @@ def test_guide_edge_check():
 
     stars.add_fake_constellation(n_stars=6, mag=8.5)
 
-    aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8),
+    aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), obsid=40000,
                           stars=stars, dark=DARK40, raise_exc=True,
                           include_ids_guide=np.arange(101, 107))
     acar = ACAReviewTable(aca)
@@ -260,7 +284,8 @@ def test_bad_star_set():
     acar = ACAReviewTable(aca)
     acar.check_catalog()
     assert acar.messages == [
-        {'text': 'Star 1248994952 is in proseco bad star set', 'category': 'critical', 'idx': 5}]
+        {'text': 'Star 1248994952 is in proseco bad star set', 'category': 'critical', 'idx': 5},
+        {'text': 'OR requested 0 fids but 3 is typical', 'category': 'caution'}]
 
 
 def test_too_bright_guide_magerr():
@@ -300,11 +325,9 @@ def test_check_fid_spoiler_score():
          'idx': 2}]
 
 
-def test_check_fid_count():
+def test_check_fid_count1():
     """Test checking fid count"""
     stars = StarsTable.empty()
-    # def add_fake_stars_from_fid(self, fid_id=1, offset_y=0, offset_z=0, mag=7.0,
-    #                            id=None, detector='ACIS-S', sim_offset=0):
     stars.add_fake_constellation(n_stars=8)
 
     aca = get_aca_catalog(stars=stars, **mod_std_info(detector='HRC-S', sim_offset=40000))
@@ -312,15 +335,12 @@ def test_check_fid_count():
     acar.check_catalog()
 
     assert acar.messages == [
-        {'text': 'Catalog has 2 fids but 3 were requested', 'category': 'critical'},
-        {'text': 'Catalog has 2 fids but 3 is typical', 'category': 'caution'}]
+        {'text': 'OR has 2 fids but 3 were requested', 'category': 'critical'}]
 
 
-def test_check_fid_count_fid():
+def test_check_fid_count2():
     """Test checking fid count"""
     stars = StarsTable.empty()
-    # def add_fake_stars_from_fid(self, fid_id=1, offset_y=0, offset_z=0, mag=7.0,
-    #                            id=None, detector='ACIS-S', sim_offset=0):
     stars.add_fake_constellation(n_stars=8)
 
     aca = get_aca_catalog(stars=stars, **mod_std_info(detector='HRC-S', n_fid=2))
@@ -328,7 +348,7 @@ def test_check_fid_count_fid():
     acar.check_catalog()
 
     assert acar.messages == [
-        {'text': 'Catalog has 2 fids but 3 is typical', 'category': 'caution'}]
+        {'text': 'OR requested 2 fids but 3 is typical', 'category': 'caution'}]
 
 
 def test_check_guide_geometry():
