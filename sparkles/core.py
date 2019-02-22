@@ -597,9 +597,6 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         outfile = self.obsid_dir / plotname
         self.context['catalog_plot'] = outfile.relative_to(self.preview_dir).as_posix()
 
-        if outfile.exists():
-            return
-
         fig = plt.figure(figsize=(6.75, 6.0))
         ax = fig.add_subplot(1, 1, 1)
         self.plot(ax=ax)
