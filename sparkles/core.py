@@ -581,7 +581,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         """Make star catalog plot for this observation.
 
         """
-        plotname = f'starcat.png'
+        plotname = f'starcat{self.report_id}.png'
         outfile = self.obsid_dir / plotname
         self.context['catalog_plot'] = outfile.relative_to(self.preview_dir).as_posix()
 
