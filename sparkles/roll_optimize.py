@@ -178,16 +178,19 @@ class RollOptimizeMixin:
         if roll_dev is None:
             roll_dev = allowed_rolldev(pitch)
 
-        # Ensure roll_nom in range 0 <= roll_nom < 360 to match q_att.roll
+        # Ensure roll_nom in range 0 <= roll_nom < 360 to match q_att.roll.
+        # Also ensure that roll_min < roll < roll_max.  It can happen that the
+        # ORviewer scheduled roll is outside the allowed_rolldev() range.  For
+        # far-forward sun, allowed_rolldev() = 0.0.
+        roll = q_att.roll
         roll_nom = roll_nom % 360.0
-        roll_min = roll_nom - roll_dev
-        roll_max = roll_nom + roll_dev
+        roll_min = min(roll_nom - roll_dev, roll - 0.1)
+        roll_max = max(roll_nom + roll_dev, roll + 0.1)
 
         # Get roll offsets spanning roll_min:roll_max with padding.  Padding
         # ensures that if a candidate is best at or beyond the extreme of
         # allowed roll then make sure the sampled rolls go out far enough so
         # that the mean of the roll_offset boundaries will get to the edge.
-        roll = q_att.roll
         ro_minus = np.arange(0, roll_min - roll_dev - roll, -d_roll)[1:][::-1]
         ro_plus = np.arange(0, roll_max + roll_dev - roll, d_roll)
         roll_offsets = np.concatenate([ro_minus, ro_plus])
