@@ -33,19 +33,16 @@ from proseco.core import MetaAttribute
 from .roll_optimize import RollOptimizeMixin
 
 CACHE = {}
-PROSECO_VERSION = proseco.test(get_version=True)
 FILEDIR = Path(__file__).parent
 
 
 def main(sys_args=None):
     """Command line interface to preview_load()"""
-
-    from . import test
-    version = test(get_version=True)
+    from . import __version__
 
     import argparse
     parser = argparse.ArgumentParser(
-        description=f'Sparkles ACA review tool {version}')
+        description=f'Sparkles ACA review tool {__version__}')
     parser.add_argument('load_name',
                         type=str,
                         help='Load name (e.g. JAN2119A) or full file name')
@@ -199,12 +196,11 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
 
     # noinspection PyDictCreation
     if make_html:
-        from . import test
-        sparkles_version = test(get_version=True)
+        from . import __version__
         context = {}
         context['load_name'] = load_name.upper()
-        context['proseco_version'] = PROSECO_VERSION
-        context['sparkles_version'] = sparkles_version
+        context['proseco_version'] = proseco.__version__
+        context['sparkles_version'] = __version__
         context['acas'] = acars
         context['summary_text'] = get_summary_text(acars)
 
