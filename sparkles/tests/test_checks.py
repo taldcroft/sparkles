@@ -224,8 +224,8 @@ def test_imposters_on_guide():
     cnt = mag_to_count_rate(mag)
     stars.add_fake_star(id=110, row=100, col=-200, mag=mag)
     dark_with_badpix = DARK40.copy()
-    dark_with_badpix.aca[100, -200] = cnt * 0.1
-    dark_with_badpix.aca[100, -201] = cnt * 0.1
+    dark_with_badpix[100 + 512, -200 + 512] = cnt * 0.1
+    dark_with_badpix[100 + 512, -201 + 512] = cnt * 0.1
     aca = get_aca_catalog(**mod_std_info(n_fid=0, n_guide=8), stars=stars, dark=dark_with_badpix,
                           raise_exc=True)
     aca = ACAReviewTable(aca)
