@@ -331,6 +331,8 @@ class MessagesList(list):
 class ACAReviewTable(ACATable, RollOptimizeMixin):
     # Whether this instance is a roll option (controls how HTML report page is formatted)
     is_roll_option = MetaAttribute()
+    roll_options = MetaAttribute()
+    roll_info = MetaAttribute()
 
     def __init__(self, *args, **kwargs):
         """Init review methods and attrs in ``aca`` object *in-place*.
