@@ -290,7 +290,7 @@ class RollOptimizeMixin:
         roll_intervals, self.roll_info = self.get_roll_intervals(cand_idxs)
 
         q_att = self.att
-        q_targ = calc_targ_from_aca(q_att, 0, 0)
+        q_targ = self._calc_targ_from_aca(q_att, 0, 0)
 
         # Special case, first roll option is self but with obsid set to roll
         acar = deepcopy(self)
@@ -309,7 +309,7 @@ class RollOptimizeMixin:
         for roll_interval in roll_intervals:
             roll = roll_interval['roll']
             q_targ_roll = Quat([q_targ.ra, q_targ.dec, roll])
-            q_att_roll = calc_aca_from_targ(q_targ_roll, 0, 0)
+            q_att_roll = self._calc_aca_from_targ(q_targ_roll, 0, 0)
 
             kwargs = self.call_args.copy()
 
