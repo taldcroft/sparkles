@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 from proseco import get_aca_catalog
+from Quaternion import Quat
+
 from .. import ACAReviewTable, run_aca_review
 
 KWARGS_48464 = {'att': [-0.51759295, -0.30129397, 0.27093045, 0.75360213],
@@ -182,3 +184,113 @@ def test_run_aca_review_function():
         {'text': 'P2: 2.84 less than 3.0 for ER', 'category': 'critical'},
         {'text': 'ER count of 9th (8.9 for -9.9C) mag guide stars 1.91 < 3.0',
          'category': 'critical'}]
+
+
+def test_roll_outside_range():
+    kw = {'att': [-0.82389459, -0.1248412, 0.35722113, 0.42190692],
+          'date': '2019:073:21:55:30.000',
+          'detector': 'ACIS-S',
+          'dither_acq': (7.9992, 7.9992),
+          'dither_guide': (7.9992, 7.9992),
+          'focus_offset': 0.0,
+          'man_angle': 122.97035882921071,
+          'n_acq': 8,
+          'n_fid': 0,
+          'n_guide': 8,
+          'obsid': 48334.0,
+          'sim_offset': 0.0,
+          't_ccd_acq': -10.257559323423214,
+          't_ccd_guide': -10.25810835536192}
+    aca = get_aca_catalog(**kw)
+    acar = aca.get_review_table()
+    acar.get_roll_options()
+    assert Quat(kw['att']).roll <= acar.roll_info['roll_max']
+    assert Quat(kw['att']).roll >= acar.roll_info['roll_min']
+
+
+def test_calc_targ_from_aca():
+    """
+    Confirm _calc_targ_from_aca seems to do the right thing based on obsid
+    This does a bit too much processing for what should be a lightweight test.
+    """
+    obs_kwargs = KWARGS_48464
+    aca_er = get_aca_catalog(**obs_kwargs)
+    acar_er = aca_er.get_review_table()
+    q_targ = acar_er._calc_targ_from_aca(acar_er.att, 0, 0)
+    # Cheat and use the string reprs for comparison to 8 decimals
+    assert Quat(obs_kwargs['att']).__repr__() == q_targ.__repr__()
+
+    or_obs_kwargs = obs_kwargs.copy()
+    or_obs_kwargs['obsid'] = 1
+    aca_or = get_aca_catalog(**or_obs_kwargs)
+    acar_or = aca_or.get_review_table()
+    q_targ = acar_or._calc_targ_from_aca(acar_or.att, 0, 0)
+    # Assert that the the OR version *doesn't* match and is off by about 70 arcsecs yaw
+    assert Quat(obs_kwargs['att']).__repr__() != q_targ.__repr__()
+    assert abs(Quat(obs_kwargs['att']).dq(q_targ).yaw * 3600) - 69.59 < .01
+
+
+def test_get_roll_intervals():
+    """
+    Test that the behavior of get_roll_intervals is different for ORs and ERs with
+    regard to use of offsets.  They are set to arbitrary large values in the test.
+    """
+
+    # This uses the catalog at KWARGS_48464, but would really be better as a fully
+    # synthetic test
+    obs_kwargs = KWARGS_48464
+    aca_er = get_aca_catalog(**obs_kwargs)
+    acar_er = aca_er.get_review_table()
+
+    kw_or = obs_kwargs.copy()
+    # Set this one to have an OR obsid (and not 0 which is special)
+    kw_or['obsid'] = 1
+    aca_or = get_aca_catalog(**kw_or)
+    acar_or = aca_or.get_review_table()
+
+    # Use these values to override the get_roll_intervals ranges to get more interesting
+    # outputs.  y_off and z_off are really 0 everywhere for now from ORViewer though.
+    y_off = 20 / 60.
+    z_off = 30 / 60.
+    roll_dev = 5
+
+    er_roll_intervs, er_info = acar_er.get_roll_intervals(
+        acar_er.get_candidate_better_stars(),
+        roll_dev=roll_dev, y_off=y_off, z_off=z_off)
+
+    or_roll_intervs, or_info = acar_or.get_roll_intervals(
+        acar_or.get_candidate_better_stars(),
+        roll_dev=roll_dev, y_off=y_off, z_off=z_off)
+
+    assert Quat(obs_kwargs['att']).roll <= er_info['roll_max']
+    assert Quat(obs_kwargs['att']).roll >= er_info['roll_min']
+
+    # The roll ranges in ACA rolls should be the same for both the ER and the OR version
+    assert or_info == er_info
+
+    # Up to this point this is really a weak functional test.  The following asserts
+    # are more regression tests for the attitude at obsid 48464
+    or_rolls = [interv['roll'] for interv in or_roll_intervs]
+    er_rolls = [interv['roll'] for interv in er_roll_intervs]
+    assert or_rolls != er_rolls
+
+    assert or_roll_intervs == [{'roll': 281.63739755173594,
+                                'roll_min': 281.63739755173594,
+                                'roll_max': 281.67838289905592,
+                                'add_ids': {84943288},
+                                'drop_ids': {84937736}},
+                               {'roll': 291.63739755173594,
+                                'roll_min': 289.42838289905592,
+                                'roll_max': 291.63739755173594,
+                                'add_ids': {85328120},
+                                'drop_ids': set()}]
+    assert er_roll_intervs == [{'roll': 291.63739755173594,
+                                'roll_min': 289.67838289905592,
+                                'roll_max': 291.63739755173594,
+                                'add_ids': {84943288},
+                                'drop_ids': set()},
+                               {'roll': 291.63739755173594,
+                                'roll_min': 290.92838289905592,
+                                'roll_max': 291.63739755173594,
+                                'add_ids': {85328120, 84943288},
+                                'drop_ids': set()}]
