@@ -308,8 +308,8 @@ class RollOptimizeMixin:
 
         for roll_interval in roll_intervals:
             roll = roll_interval['roll']
-            q_targ_roll = Quat([q_targ.ra, q_targ.dec, roll])
-            q_att_roll = self._calc_aca_from_targ(q_targ_roll, 0, 0)
+            q_targ_rolled = Quat([q_targ.ra, q_targ.dec, roll])
+            q_att_rolled = self._calc_aca_from_targ(q_targ_rolled, 0, 0)
 
             kwargs = self.call_args.copy()
 
@@ -321,7 +321,7 @@ class RollOptimizeMixin:
                         if key in kwargs:
                             del kwargs[key]
 
-            kwargs['att'] = q_att_roll
+            kwargs['att'] = q_att_rolled
 
             aca_rolled = get_aca_catalog(**kwargs)
 
