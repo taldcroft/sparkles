@@ -187,6 +187,14 @@ def test_run_aca_review_function():
 
 
 def test_roll_outside_range():
+    """
+    Run a test on obsid 48334 from ~MAR1119 that is at a pitch that has 0 roll_dev
+    and is at a roll that is not exactly nominal roll for the attitude and date.
+    The 'att' ends up with roll outside of the internally-computed roll_min / roll_max
+    which caused indexing excption in the roll-options code.  Fixed by PR #91 which
+    includes code  to expand the roll_min / roll_max range to always include the roll
+    of the originally supplied attitude.
+    """
     kw = {'att': [-0.82389459, -0.1248412, 0.35722113, 0.42190692],
           'date': '2019:073:21:55:30.000',
           'detector': 'ACIS-S',
@@ -213,21 +221,20 @@ def test_calc_targ_from_aca():
     Confirm _calc_targ_from_aca seems to do the right thing based on obsid
     This does a bit too much processing for what should be a lightweight test.
     """
-    obs_kwargs = KWARGS_48464
-    aca_er = get_aca_catalog(**obs_kwargs)
-    acar_er = aca_er.get_review_table()
-    q_targ = acar_er._calc_targ_from_aca(acar_er.att, 0, 0)
-    # Cheat and use the string reprs for comparison to 8 decimals
-    assert Quat(obs_kwargs['att']).__repr__() == q_targ.__repr__()
+    # Testing an ER where we expect the targ quaternion to be the same as the ACA
+    # quaternion.
+    aca = get_aca_catalog(**KWARGS_48464)
+    acar = aca.get_review_table()
+    q_targ = acar._calc_targ_from_aca(acar.att, 0, 0)
+    assert q_targ is acar.att
 
-    or_obs_kwargs = obs_kwargs.copy()
-    or_obs_kwargs['obsid'] = 1
-    aca_or = get_aca_catalog(**or_obs_kwargs)
-    acar_or = aca_or.get_review_table()
-    q_targ = acar_or._calc_targ_from_aca(acar_or.att, 0, 0)
-    # Assert that the the OR version *doesn't* match and is off by about 70 arcsecs yaw
-    assert Quat(obs_kwargs['att']).__repr__() != q_targ.__repr__()
-    assert abs(Quat(obs_kwargs['att']).dq(q_targ).yaw * 3600) - 69.59 < .01
+    # Here we change the review object to represent an OR (by changing is_OR) and
+    # confirm the targ quaternion is different from the ACA quaternion
+    acar._is_OR = True
+    q_targ = acar._calc_targ_from_aca(acar.att, 0, 0)
+    # Specifically the targ quaternion should be off by ODB_SI_ALIGN which is about 70
+    # arcsecs in yaw
+    assert np.isclose(acar.att.dq(q_targ).yaw * 3600, 69.59, atol=0.01, rtol=0)
 
 
 def test_get_roll_intervals():
@@ -262,8 +269,8 @@ def test_get_roll_intervals():
         acar_or.get_candidate_better_stars(),
         roll_dev=roll_dev, y_off=y_off, z_off=z_off)
 
-    assert Quat(obs_kwargs['att']).roll <= er_info['roll_max']
-    assert Quat(obs_kwargs['att']).roll >= er_info['roll_min']
+    assert acar_er.att.roll <= er_info['roll_max']
+    assert acar_er.att.roll >= er_info['roll_min']
 
     # The roll ranges in ACA rolls should be the same for both the ER and the OR version
     assert or_info == er_info
@@ -274,23 +281,39 @@ def test_get_roll_intervals():
     er_rolls = [interv['roll'] for interv in er_roll_intervs]
     assert or_rolls != er_rolls
 
-    assert or_roll_intervs == [{'roll': 281.63739755173594,
-                                'roll_min': 281.63739755173594,
-                                'roll_max': 281.67838289905592,
-                                'add_ids': {84943288},
-                                'drop_ids': {84937736}},
-                               {'roll': 291.63739755173594,
-                                'roll_min': 289.42838289905592,
-                                'roll_max': 291.63739755173594,
-                                'add_ids': {85328120},
-                                'drop_ids': set()}]
-    assert er_roll_intervs == [{'roll': 291.63739755173594,
-                                'roll_min': 289.67838289905592,
-                                'roll_max': 291.63739755173594,
-                                'add_ids': {84943288},
-                                'drop_ids': set()},
-                               {'roll': 291.63739755173594,
-                                'roll_min': 290.92838289905592,
-                                'roll_max': 291.63739755173594,
-                                'add_ids': {85328120, 84943288},
-                                'drop_ids': set()}]
+    # Set a function to do some looping and isclose logic to compare
+    # the actual vs expected intervals.
+    def compare_intervs(intervs, exp_intervs):
+        for interv, exp_interv in zip(intervs, exp_intervs):
+            assert interv.keys() == exp_interv.keys()
+            for key in interv.keys():
+                if key.startswith('roll'):
+                    assert np.isclose(interv[key], exp_interv[key], atol=1e-6, rtol=0)
+                else:
+                    assert interv[key] == exp_interv[key]
+
+    # For the OR we expect this
+    or_exp_intervs = [{'roll': 281.63739755173594,
+                       'roll_min': 281.63739755173594,
+                       'roll_max': 281.67838289905592,
+                       'add_ids': {84943288},
+                       'drop_ids': {84937736}},
+                      {'roll': 291.63739755173594,
+                       'roll_min': 289.42838289905592,
+                       'roll_max': 291.63739755173594,
+                       'add_ids': {85328120},
+                       'drop_ids': set()}]
+    compare_intervs(or_roll_intervs, or_exp_intervs)
+
+    # For the ER we expect these
+    er_exp_intervs = [{'roll': 291.63739755173594,
+                       'roll_min': 289.67838289905592,
+                       'roll_max': 291.63739755173594,
+                       'add_ids': {84943288},
+                       'drop_ids': set()},
+                      {'roll': 291.63739755173594,
+                       'roll_min': 290.92838289905592,
+                       'roll_max': 291.63739755173594,
+                       'add_ids': {85328120, 84943288},
+                       'drop_ids': set()}]
+    compare_intervs(er_roll_intervs, er_exp_intervs)
