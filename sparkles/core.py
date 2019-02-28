@@ -941,7 +941,7 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
 
         for spoiler in fid['spoilers']:
             msg = (f'Fid {fid_id} has {spoiler["warn"]} spoiler: star {spoiler["id"]} with mag '
-                   f'{spoiler["mag"]}')
+                   f'{spoiler["mag"]:.2f}')
             self.add_message(category_map[spoiler['warn']], msg, idx=idx)
 
     def check_fid_count(self):

@@ -272,7 +272,7 @@ def test_check_fid_spoiler_score():
 
     # Add a red spoiler on top of fids 1-4 and yellow on top of fid 5
     stars.add_fake_stars_from_fid(fid_id=[1, 2, 3, 4], mag=7 + 2)
-    stars.add_fake_stars_from_fid(fid_id=[5], mag=7 + 4.5)
+    stars.add_fake_stars_from_fid(fid_id=[5], mag=7 + 4.5022222)
 
     aca = get_aca_catalog(stars=stars, **STD_INFO)
 
@@ -281,8 +281,8 @@ def test_check_fid_spoiler_score():
     acar = ACAReviewTable(aca)
     acar.check_catalog()
     assert acar.messages == [
-        {'text': 'Fid 1 has red spoiler: star 108 with mag 9.0', 'category': 'critical', 'idx': 1},
-        {'text': 'Fid 5 has yellow spoiler: star 112 with mag 11.5', 'category': 'warning',
+        {'text': 'Fid 1 has red spoiler: star 108 with mag 9.00', 'category': 'critical', 'idx': 1},
+        {'text': 'Fid 5 has yellow spoiler: star 112 with mag 11.50', 'category': 'warning',
          'idx': 2}]
 
 
