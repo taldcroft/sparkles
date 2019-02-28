@@ -299,3 +299,43 @@ def test_check_fid_count():
 
     assert acar.messages == [
         {'text': 'Catalog has 2 fids but 3 are expected', 'category': 'critical'}]
+
+
+def test_check_guide_geometry():
+    """Test the checks of geometry (not all within 2500" not N-2 within 500")"""
+    yangs = np.array([1, 0, -1, 0])
+    zangs = np.array([0, 1, 0, -1])
+    for size, y_offset, z_offset, fail in zip([500, 1200, 1500],
+                                              [0, 1200, 0],
+                                              [0, 1200, -1000],
+                                              [True, True, False]):
+        stars = StarsTable.empty()
+        for y, z in zip(yangs, zangs):
+            stars.add_fake_star(yang=y * size + y_offset, zang=z * size + z_offset, mag=7.0)
+        aca = get_aca_catalog(**STD_INFO, stars=stars, dark=DARK40)
+        acar = aca.get_review_table()
+
+        acar.check_guide_geometry()
+        if fail:
+            assert len(acar.messages) == 1
+            msg = acar.messages[0]
+            assert msg['category'] == 'warning'
+            assert 'Guide stars all clustered' in msg['text']
+        else:
+            assert len(acar.messages) == 0
+
+    # Test for cluster of 3 500" rad stars in a 5 star case
+    stars = StarsTable.empty()
+    size = 1200
+    yangs = np.array([1, 0.90, 1.10,  0, -1])
+    zangs = np.array([1, 0.90, 1.10, -1, 0])
+    for y, z in zip(yangs, zangs):
+        stars.add_fake_star(yang=y * size, zang=z * size, mag=7.0)
+    aca = get_aca_catalog(**STD_INFO, stars=stars, dark=DARK40)
+    acar = aca.get_review_table()
+    acar.check_guide_geometry()
+
+    assert len(acar.messages) == 1
+    msg = acar.messages[0]
+    assert msg['category'] == 'critical'
+    assert 'Guide indexes [4, 5, 6] clustered within 500" radius' in msg['text']
