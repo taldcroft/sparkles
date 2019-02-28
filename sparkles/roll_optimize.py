@@ -131,7 +131,7 @@ class RollOptimizeMixin:
         off-nominal roll) is not specified it is computed using the OFLS table.
         These will not precisely match ORviewer results.
 
-        :param roll_nom: nominal roll for observation (deg)
+        :param roll_nom: nominal target attitude roll for observation (deg)
         :param roll_dev: max allowed deviation from nominal roll (deg)
         :param y_off: Y offset (deg, sign per OR-list convention)
         :param z_off: Z offset (deg, sign per OR-list convention)
@@ -185,7 +185,7 @@ class RollOptimizeMixin:
         if roll_dev is None:
             roll_dev = allowed_rolldev(pitch)
 
-        # Ensure roll_nom in range 0 <= roll_nom < 360 to match q_att.roll.
+        # Ensure roll_nom in range 0 <= roll_nom < 360 to match att_targ.roll.
         # Also ensure that roll_min < roll < roll_max.  It can happen that the
         # ORviewer scheduled roll is outside the allowed_rolldev() range.  For
         # far-forward sun, allowed_rolldev() = 0.0.
