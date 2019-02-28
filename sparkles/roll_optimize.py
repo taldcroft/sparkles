@@ -256,7 +256,16 @@ class RollOptimizeMixin:
 
         return sorted(roll_intervals, key=lambda x: x['roll']), roll_info
 
-    def get_roll_options(self):
+    def get_roll_options(self, min_improvement=0.3):
+        """
+        Get roll options for this catalog.
+
+        This sets the ``roll_options`` attribute with a list of dict, and sets
+        ``roll_info`` with a dict of info about roll.
+
+        :param min_improvement: minimum value of improvement metric to accept option
+        :return: None
+        """
 
         if self.loud:
             print('  Exploring roll options')
@@ -337,7 +346,7 @@ class RollOptimizeMixin:
 
             improvement = improve_metric(n_stars, P2, n_stars_rolled, P2_rolled)
 
-            if improvement > 0.3:
+            if improvement > min_improvement:
                 acar = self.__class__(aca_rolled, obsid=self.obsid,
                                       is_roll_option=True)
 
