@@ -457,6 +457,12 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         return status
 
     @property
+    def att_targ(self):
+        if not hasattr(self, '_att_targ'):
+            self._att_targ = self._calc_targ_from_aca(self.att, 0, 0)
+        return self._att_targ
+
+    @property
     def report_id(self):
         return round(self.att.roll, 2) if self.is_roll_option else self.obsid
 
