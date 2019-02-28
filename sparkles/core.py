@@ -6,6 +6,7 @@ Preliminary review of ACA catalogs selected by proseco.
 """
 import gzip
 import io
+import os
 import re
 import traceback
 from pathlib import Path
@@ -622,15 +623,20 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         """
         P2 = -np.log10(self.acqs.calc_p_safe())
         att = self.att
+        att_targ = self.att_targ
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
         catalog = '\n'.join(self.pformat(max_width=-1, max_lines=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
+
+        att_string = f'ACA RA, Dec, Roll (deg): {att.ra:.6f} {att.dec:.5f} {att.roll:.5f}'
+        if self.is_OR:
+            att_string += f'  [Target: {att_targ.ra:.6f} {att_targ.dec:.5f} {att_targ.roll:.5f}]'
 
         message_text = self.get_formatted_messages()
 
         text_pre = f"""\
 {self.detector} SIM-Z offset: {self.sim_offset}
-RA, Dec, Roll (deg): {att.ra:.6f} {att.dec:.5f} {att.roll:.5f}
+{att_string}
 Dither acq: Y_amp= {self.dither_acq.y:.1f}  Z_amp={self.dither_acq.z:.1f}
 Dither gui: Y_amp= {self.dither_guide.y:.1f}  Z_amp={self.dither_guide.z:.1f}
 Maneuver Angle: {self.man_angle:.2f}
