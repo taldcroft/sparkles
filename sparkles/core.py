@@ -6,7 +6,6 @@ Preliminary review of ACA catalogs selected by proseco.
 """
 import gzip
 import io
-import os
 import re
 import traceback
 from pathlib import Path
