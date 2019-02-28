@@ -178,16 +178,19 @@ class RollOptimizeMixin:
         if roll_dev is None:
             roll_dev = allowed_rolldev(pitch)
 
-        # Ensure roll_nom in range 0 <= roll_nom < 360 to match q_att.roll
+        # Ensure roll_nom in range 0 <= roll_nom < 360 to match q_att.roll.
+        # Also ensure that roll_min < roll < roll_max.  It can happen that the
+        # ORviewer scheduled roll is outside the allowed_rolldev() range.  For
+        # far-forward sun, allowed_rolldev() = 0.0.
+        roll = q_att.roll
         roll_nom = roll_nom % 360.0
-        roll_min = roll_nom - roll_dev
-        roll_max = roll_nom + roll_dev
+        roll_min = min(roll_nom - roll_dev, roll - 0.1)
+        roll_max = max(roll_nom + roll_dev, roll + 0.1)
 
         # Get roll offsets spanning roll_min:roll_max with padding.  Padding
         # ensures that if a candidate is best at or beyond the extreme of
         # allowed roll then make sure the sampled rolls go out far enough so
         # that the mean of the roll_offset boundaries will get to the edge.
-        roll = q_att.roll
         ro_minus = np.arange(0, roll_min - roll_dev - roll, -d_roll)[1:][::-1]
         ro_plus = np.arange(0, roll_max + roll_dev - roll, d_roll)
         roll_offsets = np.concatenate([ro_minus, ro_plus])
@@ -287,7 +290,7 @@ class RollOptimizeMixin:
         roll_intervals, self.roll_info = self.get_roll_intervals(cand_idxs)
 
         q_att = self.att
-        q_targ = calc_targ_from_aca(q_att, 0, 0)
+        q_targ = self._calc_targ_from_aca(q_att, 0, 0)
 
         # Special case, first roll option is self but with obsid set to roll
         acar = deepcopy(self)
@@ -305,8 +308,8 @@ class RollOptimizeMixin:
 
         for roll_interval in roll_intervals:
             roll = roll_interval['roll']
-            q_targ_roll = Quat([q_targ.ra, q_targ.dec, roll])
-            q_att_roll = calc_aca_from_targ(q_targ_roll, 0, 0)
+            q_targ_rolled = Quat([q_targ.ra, q_targ.dec, roll])
+            q_att_rolled = self._calc_aca_from_targ(q_targ_rolled, 0, 0)
 
             kwargs = self.call_args.copy()
 
@@ -318,7 +321,7 @@ class RollOptimizeMixin:
                         if key in kwargs:
                             del kwargs[key]
 
-            kwargs['att'] = q_att_roll
+            kwargs['att'] = q_att_rolled
 
             aca_rolled = get_aca_catalog(**kwargs)
 

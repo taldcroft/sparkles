@@ -170,7 +170,13 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
         aca.check_catalog()
 
         if roll_level == 'all' or aca.messages >= roll_level:
-            aca.get_roll_options()  # sets roll_options, roll_info attributes
+            try:
+                aca.get_roll_options()  # sets roll_options, roll_info attributes
+            except Exception: # as err:
+                err = traceback.format_exc()
+                aca.add_message('critical', text=f'Running get_roll_options() failed: \n{err}')
+                aca.roll_options = None
+                aca.roll_info = None
 
         if make_html:
 
@@ -186,8 +192,9 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
             if report_level == 'all' or aca.messages >= report_level:
                 try:
                     aca.make_report()
-                except Exception as err:
-                    aca.add_message('critical', text=f'Running make_report() failed: {err}')
+                except Exception:
+                    err = traceback.format_exc()
+                    aca.add_message('critical', text=f'Running make_report() failed:\n{err}')
 
             if aca.roll_info:
                 aca.make_roll_options_report()
@@ -324,6 +331,9 @@ class MessagesList(list):
 class ACAReviewTable(ACATable, RollOptimizeMixin):
     # Whether this instance is a roll option (controls how HTML report page is formatted)
     is_roll_option = MetaAttribute()
+    roll_options = MetaAttribute()
+    roll_info = MetaAttribute()
+    messages = MetaAttribute()
 
     def __init__(self, *args, **kwargs):
         """Init review methods and attrs in ``aca`` object *in-place*.
