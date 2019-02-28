@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 from proseco import get_aca_catalog
+from Quaternion import Quat
+
 from .. import ACAReviewTable, run_aca_review
 
 KWARGS_48464 = {'att': [-0.51759295, -0.30129397, 0.27093045, 0.75360213],
@@ -182,3 +184,136 @@ def test_run_aca_review_function():
         {'text': 'P2: 2.84 less than 3.0 for ER', 'category': 'critical'},
         {'text': 'ER count of 9th (8.9 for -9.9C) mag guide stars 1.91 < 3.0',
          'category': 'critical'}]
+
+
+def test_roll_outside_range():
+    """
+    Run a test on obsid 48334 from ~MAR1119 that is at a pitch that has 0 roll_dev
+    and is at a roll that is not exactly nominal roll for the attitude and date.
+    The 'att' ends up with roll outside of the internally-computed roll_min / roll_max
+    which caused indexing excption in the roll-options code.  Fixed by PR #91 which
+    includes code  to expand the roll_min / roll_max range to always include the roll
+    of the originally supplied attitude.
+    """
+    kw = {'att': [-0.82389459, -0.1248412, 0.35722113, 0.42190692],
+          'date': '2019:073:21:55:30.000',
+          'detector': 'ACIS-S',
+          'dither_acq': (7.9992, 7.9992),
+          'dither_guide': (7.9992, 7.9992),
+          'focus_offset': 0.0,
+          'man_angle': 122.97035882921071,
+          'n_acq': 8,
+          'n_fid': 0,
+          'n_guide': 8,
+          'obsid': 48334.0,
+          'sim_offset': 0.0,
+          't_ccd_acq': -10.257559323423214,
+          't_ccd_guide': -10.25810835536192}
+    aca = get_aca_catalog(**kw)
+    acar = aca.get_review_table()
+    acar.get_roll_options()
+    assert Quat(kw['att']).roll <= acar.roll_info['roll_max']
+    assert Quat(kw['att']).roll >= acar.roll_info['roll_min']
+
+
+def test_calc_targ_from_aca():
+    """
+    Confirm _calc_targ_from_aca seems to do the right thing based on obsid
+    This does a bit too much processing for what should be a lightweight test.
+    """
+    # Testing an ER where we expect the targ quaternion to be the same as the ACA
+    # quaternion.
+    aca = get_aca_catalog(**KWARGS_48464)
+    acar = aca.get_review_table()
+    q_targ = acar._calc_targ_from_aca(acar.att, 0, 0)
+    assert q_targ is acar.att
+
+    # Here we change the review object to represent an OR (by changing is_OR) and
+    # confirm the targ quaternion is different from the ACA quaternion
+    acar._is_OR = True
+    q_targ = acar._calc_targ_from_aca(acar.att, 0, 0)
+    # Specifically the targ quaternion should be off by ODB_SI_ALIGN which is about 70
+    # arcsecs in yaw
+    assert np.isclose(acar.att.dq(q_targ).yaw * 3600, 69.59, atol=0.01, rtol=0)
+
+
+def test_get_roll_intervals():
+    """
+    Test that the behavior of get_roll_intervals is different for ORs and ERs with
+    regard to use of offsets.  They are set to arbitrary large values in the test.
+    """
+
+    # This uses the catalog at KWARGS_48464, but would really be better as a fully
+    # synthetic test
+    obs_kwargs = KWARGS_48464
+    aca_er = get_aca_catalog(**obs_kwargs)
+    acar_er = aca_er.get_review_table()
+
+    kw_or = obs_kwargs.copy()
+    # Set this one to have an OR obsid (and not 0 which is special)
+    kw_or['obsid'] = 1
+    aca_or = get_aca_catalog(**kw_or)
+    acar_or = aca_or.get_review_table()
+
+    # Use these values to override the get_roll_intervals ranges to get more interesting
+    # outputs.  y_off and z_off are really 0 everywhere for now from ORViewer though.
+    y_off = 20 / 60.
+    z_off = 30 / 60.
+    roll_dev = 5
+
+    er_roll_intervs, er_info = acar_er.get_roll_intervals(
+        acar_er.get_candidate_better_stars(),
+        roll_dev=roll_dev, y_off=y_off, z_off=z_off)
+
+    or_roll_intervs, or_info = acar_or.get_roll_intervals(
+        acar_or.get_candidate_better_stars(),
+        roll_dev=roll_dev, y_off=y_off, z_off=z_off)
+
+    assert acar_er.att.roll <= er_info['roll_max']
+    assert acar_er.att.roll >= er_info['roll_min']
+
+    # The roll ranges in ACA rolls should be the same for both the ER and the OR version
+    assert or_info == er_info
+
+    # Up to this point this is really a weak functional test.  The following asserts
+    # are more regression tests for the attitude at obsid 48464
+    or_rolls = [interv['roll'] for interv in or_roll_intervs]
+    er_rolls = [interv['roll'] for interv in er_roll_intervs]
+    assert or_rolls != er_rolls
+
+    # Set a function to do some looping and isclose logic to compare
+    # the actual vs expected intervals.
+    def compare_intervs(intervs, exp_intervs):
+        for interv, exp_interv in zip(intervs, exp_intervs):
+            assert interv.keys() == exp_interv.keys()
+            for key in interv.keys():
+                if key.startswith('roll'):
+                    assert np.isclose(interv[key], exp_interv[key], atol=1e-6, rtol=0)
+                else:
+                    assert interv[key] == exp_interv[key]
+
+    # For the OR we expect this
+    or_exp_intervs = [{'roll': 281.63739755173594,
+                       'roll_min': 281.63739755173594,
+                       'roll_max': 281.67838289905592,
+                       'add_ids': {84943288},
+                       'drop_ids': {84937736}},
+                      {'roll': 291.63739755173594,
+                       'roll_min': 289.42838289905592,
+                       'roll_max': 291.63739755173594,
+                       'add_ids': {85328120},
+                       'drop_ids': set()}]
+    compare_intervs(or_roll_intervs, or_exp_intervs)
+
+    # For the ER we expect these
+    er_exp_intervs = [{'roll': 291.63739755173594,
+                       'roll_min': 289.67838289905592,
+                       'roll_max': 291.63739755173594,
+                       'add_ids': {84943288},
+                       'drop_ids': set()},
+                      {'roll': 291.63739755173594,
+                       'roll_min': 290.92838289905592,
+                       'roll_max': 291.63739755173594,
+                       'add_ids': {85328120, 84943288},
+                       'drop_ids': set()}]
+    compare_intervs(er_roll_intervs, er_exp_intervs)
