@@ -173,11 +173,15 @@ class RollOptimizeMixin:
         # If roll_nom and roll_dev not supplied (which is normally the case) compute
         # them using Sun position.  Here we use the ACA attitude to get pitch since that
         #  is the official "spacecraft" attitude.
+        att = self.att
         if roll_nom is None or roll_dev is None:
             import Ska.Sun
-            pitch = Ska.Sun.pitch(self.att.ra, self.att.dec, self.date)
+            pitch = Ska.Sun.pitch(att.ra, att.dec, self.date)
         if roll_nom is None:
-            roll_nom = Ska.Sun.nominal_roll(self.att.ra, self.att.dec, self.date)
+            roll_nom = Ska.Sun.nominal_roll(att.ra, att.dec, self.date)
+            att_nom = Quat([att.ra, att.dec, roll_nom])
+            att_nom_targ = self._calc_targ_from_aca(att_nom, y_off, z_off)
+            roll_nom = att_nom_targ.roll
         if roll_dev is None:
             roll_dev = allowed_rolldev(pitch)
 
