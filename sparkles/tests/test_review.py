@@ -315,8 +315,8 @@ def test_get_roll_intervals():
     assert acar_er.att.roll <= er_info['roll_max']
     assert acar_er.att.roll >= er_info['roll_min']
 
-    # The roll ranges in ACA rolls should be the same for both the ER and the OR version
-    assert or_info == er_info
+    # The roll ranges in ACA rolls should be different for the ER and the OR version
+    assert or_info != er_info
 
     # Up to this point this is really a weak functional test.  The following asserts
     # are more regression tests for the attitude at obsid 48464
