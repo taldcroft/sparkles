@@ -464,7 +464,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
     @property
     def report_id(self):
-        return round(self.att.roll, 2) if self.is_roll_option else self.obsid
+        return round(self.att_targ.roll, 2) if self.is_roll_option else self.obsid
 
     @property
     def thumbs_up(self):
