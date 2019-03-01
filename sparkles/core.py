@@ -650,9 +650,9 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         catalog = '\n'.join(self.pformat(max_width=-1, max_lines=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
 
-        att_string = f'ACA RA, Dec, Roll (deg): {att.ra:.6f} {att.dec:.5f} {att.roll:.5f}'
+        att_string = f'ACA RA, Dec, Roll (deg): {att.ra:.5f} {att.dec:.5f} {att.roll:.5f}'
         if self.is_OR:
-            att_string += f'  [Target: {att_targ.ra:.6f} {att_targ.dec:.5f} {att_targ.roll:.5f}]'
+            att_string += f'  [Target: {att_targ.ra:.5f} {att_targ.dec:.5f} {att_targ.roll:.5f}]'
 
         message_text = self.get_formatted_messages()
 
