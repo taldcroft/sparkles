@@ -214,7 +214,8 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
         # Special case when running a set of roll options for one obsid
         is_roll_report = all(aca.is_roll_option for aca in acars)
 
-        context['id_label'] = 'Roll' if is_roll_report else 'Obsid'
+        label_frame = 'ACA' if aca.is_ER else 'Target'
+        context['id_label'] = f'{label_frame} roll' if is_roll_report else 'Obsid'
 
         template_file = FILEDIR / 'index_template_preview.html'
         template = Template(open(template_file, 'r').read())
