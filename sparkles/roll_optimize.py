@@ -131,7 +131,7 @@ class RollOptimizeMixin:
         off-nominal roll) is not specified it is computed using the OFLS table.
         These will not precisely match ORviewer results.
 
-        :param roll_nom: nominal roll for observation (deg)
+        :param roll_nom: nominal target attitude roll for observation (deg)
         :param roll_dev: max allowed deviation from nominal roll (deg)
         :param y_off: Y offset (deg, sign per OR-list convention)
         :param z_off: Z offset (deg, sign per OR-list convention)
@@ -150,39 +150,46 @@ class RollOptimizeMixin:
         guides.meta.clear()
         cands = vstack([acqs, guides, self.stars[cols][cand_idxs]])
 
-        q_att = self.att
+        att_targ = self.att_targ
 
         def get_ids_list(roll_offsets):
             ids_list = []
-            # Get the target attitude to roll about from ACA attitude.  For ERs this returns q_att.
-            q_targ = self._calc_targ_from_aca(q_att, y_off, z_off)
 
             for ii, roll_offset in enumerate(roll_offsets):
-                q_targ_roll = Quat([q_targ.ra, q_targ.dec, q_targ.roll + roll_offset])
-                # Transform back to ACA pointing (for ERs this is just q_targ_roll).
-                q_att_roll = self._calc_aca_from_targ(q_targ_roll, y_off, z_off)
+                # Roll about the target attitude, which is offset from ACA attitude by a bit
+                att_targ_rolled = Quat([att_targ.ra, att_targ.dec, att_targ.roll + roll_offset])
+
+                # Transform back to ACA pointing for computing star positions.
+                att_rolled = self._calc_aca_from_targ(att_targ_rolled, y_off, z_off)
 
                 # Get yag/zag row/col for candidates
-                yag, zag = radec_to_yagzag(cands['ra'], cands['dec'], q_att_roll)
+                yag, zag = radec_to_yagzag(cands['ra'], cands['dec'], att_rolled)
                 row, col = yagzag_to_pixels(yag, zag, allow_bad=True, pix_zero_loc='edge')
 
                 ok = (np.abs(row) < CCD['row_max']) & (np.abs(col) < CCD['col_max'])
                 ids_list.append(set(cands['id'][ok]))
             return ids_list
 
+        # If roll_nom and roll_dev not supplied (which is normally the case) compute
+        # them using Sun position.  Here we use the ACA attitude to get pitch since that
+        #  is the official "spacecraft" attitude.
+        att = self.att
         if roll_nom is None or roll_dev is None:
             import Ska.Sun
-            pitch = Ska.Sun.pitch(q_att.ra, q_att.dec, self.date)
+            pitch = Ska.Sun.pitch(att.ra, att.dec, self.date)
         if roll_nom is None:
-            roll_nom = Ska.Sun.nominal_roll(q_att.ra, q_att.dec, self.date)
+            roll_nom = Ska.Sun.nominal_roll(att.ra, att.dec, self.date)
+            att_nom = Quat([att.ra, att.dec, roll_nom])
+            att_nom_targ = self._calc_targ_from_aca(att_nom, y_off, z_off)
+            roll_nom = att_nom_targ.roll
         if roll_dev is None:
             roll_dev = allowed_rolldev(pitch)
 
-        # Ensure roll_nom in range 0 <= roll_nom < 360 to match q_att.roll.
+        # Ensure roll_nom in range 0 <= roll_nom < 360 to match att_targ.roll.
         # Also ensure that roll_min < roll < roll_max.  It can happen that the
         # ORviewer scheduled roll is outside the allowed_rolldev() range.  For
         # far-forward sun, allowed_rolldev() = 0.0.
-        roll = q_att.roll
+        roll = att_targ.roll
         roll_nom = roll_nom % 360.0
         roll_min = min(roll_nom - roll_dev, roll - 0.1)
         roll_max = max(roll_nom + roll_dev, roll + 0.1)
@@ -249,7 +256,16 @@ class RollOptimizeMixin:
 
         return sorted(roll_intervals, key=lambda x: x['roll']), roll_info
 
-    def get_roll_options(self):
+    def get_roll_options(self, min_improvement=0.3):
+        """
+        Get roll options for this catalog.
+
+        This sets the ``roll_options`` attribute with a list of dict, and sets
+        ``roll_info`` with a dict of info about roll.
+
+        :param min_improvement: minimum value of improvement metric to accept option
+        :return: None
+        """
 
         if self.loud:
             print('  Exploring roll options')
@@ -289,8 +305,7 @@ class RollOptimizeMixin:
         cand_idxs = self.get_candidate_better_stars()
         roll_intervals, self.roll_info = self.get_roll_intervals(cand_idxs)
 
-        q_att = self.att
-        q_targ = self._calc_targ_from_aca(q_att, 0, 0)
+        att_targ = self.att_targ
 
         # Special case, first roll option is self but with obsid set to roll
         acar = deepcopy(self)
@@ -300,16 +315,16 @@ class RollOptimizeMixin:
                          'P2': P2,
                          'n_stars': n_stars,
                          'improvement': 0.0,
-                         'roll': q_att.roll,
-                         'roll_min': q_att.roll,
-                         'roll_max': q_att.roll,
+                         'roll': att_targ.roll,
+                         'roll_min': att_targ.roll,
+                         'roll_max': att_targ.roll,
                          'add_ids': set(),
                          'drop_ids': set()}]
 
         for roll_interval in roll_intervals:
             roll = roll_interval['roll']
-            q_targ_rolled = Quat([q_targ.ra, q_targ.dec, roll])
-            q_att_rolled = self._calc_aca_from_targ(q_targ_rolled, 0, 0)
+            att_targ_rolled = Quat([att_targ.ra, att_targ.dec, roll])
+            att_rolled = self._calc_aca_from_targ(att_targ_rolled, 0, 0)
 
             kwargs = self.call_args.copy()
 
@@ -321,7 +336,7 @@ class RollOptimizeMixin:
                         if key in kwargs:
                             del kwargs[key]
 
-            kwargs['att'] = q_att_rolled
+            kwargs['att'] = att_rolled
 
             aca_rolled = get_aca_catalog(**kwargs)
 
@@ -331,7 +346,7 @@ class RollOptimizeMixin:
 
             improvement = improve_metric(n_stars, P2, n_stars_rolled, P2_rolled)
 
-            if improvement > 0.3:
+            if improvement > min_improvement:
                 acar = self.__class__(aca_rolled, obsid=self.obsid,
                                       is_roll_option=True)
 

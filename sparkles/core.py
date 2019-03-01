@@ -76,7 +76,7 @@ def main(sys_args=None):
 
 def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
                    report_level='none', roll_level='none', loud=False, obsids=None,
-                   raise_exc=True):
+                   context=None, raise_exc=True):
     """Do ACA load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
@@ -113,6 +113,7 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
     :param loud: print status information during checking
     :param obsids: list of obsids for selecting a subset for review (mostly for debug)
     :param is_ORs: list of is_OR values (for roll options review page)
+    :param context: initial context dict for HTML report
     :param raise_exc: if False then catch exception and return traceback (default=True)
     :returns: exception message: str or None
 
@@ -120,7 +121,7 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
     try:
         _run_aca_review(load_name=load_name, acars=acars, make_html=make_html,
                         report_dir=report_dir, report_level=report_level,
-                        roll_level=roll_level, loud=loud, obsids=obsids)
+                        roll_level=roll_level, loud=loud, obsids=obsids, context=context)
     except Exception:
         if raise_exc:
             raise
@@ -132,7 +133,8 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
 
 
 def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
-                   report_level='none', roll_level='none', loud=False, obsids=None):
+                    report_level='none', roll_level='none', loud=False, obsids=None,
+                    context=None):
 
     if acars is None:
         acars = get_acas_from_pickle(load_name, loud)
@@ -204,7 +206,13 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
     # noinspection PyDictCreation
     if make_html:
         from . import __version__
-        context = {}
+
+        # Create new context or else use a copy of the supplied dict
+        if context is None:
+            context = {}
+        else:
+            context = context.copy()
+
         context['load_name'] = load_name.upper()
         context['proseco_version'] = proseco.__version__
         context['sparkles_version'] = __version__
@@ -214,7 +222,8 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
         # Special case when running a set of roll options for one obsid
         is_roll_report = all(aca.is_roll_option for aca in acars)
 
-        context['id_label'] = 'Roll' if is_roll_report else 'Obsid'
+        label_frame = 'ACA' if aca.is_ER else 'Target'
+        context['id_label'] = f'{label_frame} roll' if is_roll_report else 'Obsid'
 
         template_file = FILEDIR / 'index_template_preview.html'
         template = Template(open(template_file, 'r').read())
@@ -457,8 +466,14 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         return status
 
     @property
+    def att_targ(self):
+        if not hasattr(self, '_att_targ'):
+            self._att_targ = self._calc_targ_from_aca(self.att, 0, 0)
+        return self._att_targ
+
+    @property
     def report_id(self):
-        return round(self.att.roll, 2) if self.is_roll_option else self.obsid
+        return round(self.att_targ.roll, 2) if self.is_roll_option else self.obsid
 
     @property
     def thumbs_up(self):
@@ -508,30 +523,36 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # Get stars from AGASC and set ``stars`` attribute
         self.set_stars(filter_near_fov=False)
 
-    def make_roll_options_report(self):
-        """Make a summary table and separate report page for roll options.
+    def get_roll_options_table(self):
+        """Return table of roll options
+
+        Note that self.roll_options includes the originally-planned roll case
+        as the first row.
 
         """
-        # Note self.roll_options includes the originally-planned roll case
-        # as the first row.
         opts = [opt.copy() for opt in self.roll_options]
-        rolls = [opt['acar'].att.roll for opt in self.roll_options]
-        acas = [opt['acar'] for opt in opts]
 
         for opt in opts:
             del opt['acar']
+            for name in ('add_ids', 'drop_ids'):
+                opt[name] = ' '.join(str(id_) for id_ in opt[name]) if opt[name] else '--'
 
         opts_table = Table(opts, names=['roll', 'P2', 'n_stars', 'improvement',
                                         'roll_min', 'roll_max', 'add_ids', 'drop_ids'])
         for col in opts_table.itercols():
             if col.dtype.kind == 'f':
                 col.info.format = '.2f'
-        self.roll_options_table = opts_table
 
-        # Make a separate preview page for the roll options
-        rolls_dir = self.obsid_dir / 'rolls'
-        run_aca_review(f'Obsid {self.obsid} roll options', acars=acas, report_dir=rolls_dir,
-                       report_level='none', roll_level='none', loud=False)
+        return opts_table
+
+    def make_roll_options_report(self):
+        """Make a summary table and separate report page for roll options.
+
+        """
+        self.roll_options_table = self.get_roll_options_table()
+
+        # rolls = [opt['acar'].att.roll for opt in self.roll_options]
+        acas = [opt['acar'] for opt in self.roll_options]
 
         # Add in a column with summary of messages in roll options e.g.
         # critical: 2 warning: 1
@@ -557,10 +578,18 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
                                                 'attributes': ['class']}})
         htmls = [line.strip() for line in io_html.getvalue().splitlines()]
         htmls = htmls[htmls.index('<table class="table-striped">'):htmls.index('</table>') + 1]
-        self.context['roll_options_table'] = '\n'.join(htmls)
-        self.context['roll_options_index'] = rolls_index.as_posix()
+        roll_context = {}
+        roll_context['roll_options_table'] = '\n'.join(htmls)
+        roll_context['roll_options_index'] = rolls_index.as_posix()
         for key in ('roll_min', 'roll_max', 'roll_nom'):
-            self.context[key] = f'{self.roll_info[key]:.2f}'
+            roll_context[key] = f'{self.roll_info[key]:.2f}'
+        self.context.update(roll_context)
+
+        # Make a separate preview page for the roll options
+        rolls_dir = self.obsid_dir / 'rolls'
+        run_aca_review(f'Obsid {self.obsid} roll options', acars=acas, report_dir=rolls_dir,
+                       report_level='none', roll_level='none', loud=False,
+                       context=roll_context)
 
     def plot(self, ax=None, **kwargs):
         """
@@ -616,15 +645,20 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         """
         P2 = -np.log10(self.acqs.calc_p_safe())
         att = self.att
+        att_targ = self.att_targ
         self._base_repr_()  # Hack to set default ``format`` for cols as needed
         catalog = '\n'.join(self.pformat(max_width=-1, max_lines=-1))
         self.acq_count = np.sum(self.acqs['p_acq'])
+
+        att_string = f'ACA RA, Dec, Roll (deg): {att.ra:.5f} {att.dec:.5f} {att.roll:.5f}'
+        if self.is_OR:
+            att_string += f'  [Target: {att_targ.ra:.5f} {att_targ.dec:.5f} {att_targ.roll:.5f}]'
 
         message_text = self.get_formatted_messages()
 
         text_pre = f"""\
 {self.detector} SIM-Z offset: {self.sim_offset}
-RA, Dec, Roll (deg): {att.ra:.6f} {att.dec:.5f} {att.roll:.5f}
+{att_string}
 Dither acq: Y_amp= {self.dither_acq.y:.1f}  Z_amp={self.dither_acq.z:.1f}
 Dither gui: Y_amp= {self.dither_guide.y:.1f}  Z_amp={self.dither_guide.z:.1f}
 Maneuver Angle: {self.man_angle:.2f}

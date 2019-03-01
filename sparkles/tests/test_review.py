@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from proseco import get_aca_catalog
 from Quaternion import Quat
+import Ska.Sun
+from proseco.tests.test_common import mod_std_info
 
 from .. import ACAReviewTable, run_aca_review
 
@@ -216,6 +218,47 @@ def test_roll_outside_range():
     assert Quat(kw['att']).roll >= acar.roll_info['roll_min']
 
 
+def test_roll_options_dec89_9():
+    """Test getting roll options for an OR and ER at very high declination
+    where the difference between the ACA and target frames is large.  Here
+    the roll will differ by around 10 deg.
+    """
+    dec = 89.9
+    date = '2019:006'
+    roll = Ska.Sun.nominal_roll(0, dec, time=date)
+    att = Quat([0, dec, roll])
+
+    # Expected roll options.  Note same basic outputs for add_ids and drop_ids but
+    # difference roll values.
+    exp = {}
+    exp[48000] = [' roll   P2  n_stars improvement roll_min roll_max  add_ids   drop_ids',
+                  '------ ---- ------- ----------- -------- -------- --------- ---------',
+                  '287.25 3.22    0.55        0.00   287.25   287.25        --        --',
+                  '268.50 7.18    4.98        7.30   268.50   273.25 610927224 606601776',
+                  '270.62 7.18    4.22        6.38   268.50   273.25 610927224        --',
+                  '281.00 7.85    6.98       10.03   276.75   285.25 608567744        --']
+    exp[18000] = [' roll   P2  n_stars improvement roll_min roll_max  add_ids   drop_ids',
+                  '------ ---- ------- ----------- -------- -------- --------- ---------',
+                  '276.94 3.22    7.54        0.00   276.94   276.94        --        --',
+                  '258.19 7.18    8.00        2.05   258.19   262.69 610927224 606601776',
+                  '259.69 7.18    8.00        2.05   258.19   262.69 610927224        --',
+                  '270.57 7.85    8.00        2.39   266.19   274.94 608567744        --']
+
+    for obsid in (48000, 18000):
+        kwargs = mod_std_info(att=att, n_guide=8, obsid=obsid, date=date)
+        # Exclude a bunch of good stars to make the initial catalog lousy
+        exclude_ids = [606470536, 606601760, 606732552, 606732584, 610926712, 611058024]
+        kwargs['exclude_ids_acq'] = exclude_ids
+        kwargs['exclude_ids_guide'] = exclude_ids
+
+        aca = get_aca_catalog(**kwargs)
+        acar = aca.get_review_table()
+        acar.run_aca_review(roll_level='all', make_html=False)
+        tbl = acar.get_roll_options_table()
+        out = tbl.pformat(max_lines=-1, max_width=-1)
+        assert out == exp[obsid]
+
+
 def test_calc_targ_from_aca():
     """
     Confirm _calc_targ_from_aca seems to do the right thing based on obsid
@@ -272,8 +315,8 @@ def test_get_roll_intervals():
     assert acar_er.att.roll <= er_info['roll_max']
     assert acar_er.att.roll >= er_info['roll_min']
 
-    # The roll ranges in ACA rolls should be the same for both the ER and the OR version
-    assert or_info == er_info
+    # The roll ranges in ACA rolls should be different for the ER and the OR version
+    assert or_info != er_info
 
     # Up to this point this is really a weak functional test.  The following asserts
     # are more regression tests for the attitude at obsid 48464
