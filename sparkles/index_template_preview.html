@@ -61,6 +61,13 @@ proseco version: {{proseco_version}}
 {{summary_text | safe}}
 </pre>
 
+{% if roll_options_table %}
+<h3>Roll options (roll_min={{roll_min}}
+        roll_nom={{roll_nom}}
+        roll_max={{roll_max}}</h3>
+        {{roll_options_table | safe}}
+{% endif %}
+
 {% for aca in acas %}
 
 <a name="id{{aca.report_id}}"></a>

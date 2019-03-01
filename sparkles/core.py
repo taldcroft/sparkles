@@ -76,7 +76,7 @@ def main(sys_args=None):
 
 def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
                    report_level='none', roll_level='none', loud=False, obsids=None,
-                   raise_exc=True):
+                   context=None, raise_exc=True):
     """Do ACA load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
@@ -113,6 +113,7 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
     :param loud: print status information during checking
     :param obsids: list of obsids for selecting a subset for review (mostly for debug)
     :param is_ORs: list of is_OR values (for roll options review page)
+    :param context: initial context dict for HTML report
     :param raise_exc: if False then catch exception and return traceback (default=True)
     :returns: exception message: str or None
 
@@ -120,7 +121,7 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
     try:
         _run_aca_review(load_name=load_name, acars=acars, make_html=make_html,
                         report_dir=report_dir, report_level=report_level,
-                        roll_level=roll_level, loud=loud, obsids=obsids)
+                        roll_level=roll_level, loud=loud, obsids=obsids, context=context)
     except Exception:
         if raise_exc:
             raise
@@ -132,7 +133,8 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
 
 
 def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
-                   report_level='none', roll_level='none', loud=False, obsids=None):
+                    report_level='none', roll_level='none', loud=False, obsids=None,
+                    context=None):
 
     if acars is None:
         acars = get_acas_from_pickle(load_name, loud)
@@ -204,7 +206,13 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
     # noinspection PyDictCreation
     if make_html:
         from . import __version__
-        context = {}
+
+        # Create new context or else use a copy of the supplied dict
+        if context is None:
+            context = {}
+        else:
+            context = context.copy()
+
         context['load_name'] = load_name.upper()
         context['proseco_version'] = proseco.__version__
         context['sparkles_version'] = __version__
@@ -535,11 +543,6 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
                 col.info.format = '.2f'
         self.roll_options_table = opts_table
 
-        # Make a separate preview page for the roll options
-        rolls_dir = self.obsid_dir / 'rolls'
-        run_aca_review(f'Obsid {self.obsid} roll options', acars=acas, report_dir=rolls_dir,
-                       report_level='none', roll_level='none', loud=False)
-
         # Add in a column with summary of messages in roll options e.g.
         # critical: 2 warning: 1
         msgs_summaries = []
@@ -564,10 +567,18 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
                                                 'attributes': ['class']}})
         htmls = [line.strip() for line in io_html.getvalue().splitlines()]
         htmls = htmls[htmls.index('<table class="table-striped">'):htmls.index('</table>') + 1]
-        self.context['roll_options_table'] = '\n'.join(htmls)
-        self.context['roll_options_index'] = rolls_index.as_posix()
+        roll_context = {}
+        roll_context['roll_options_table'] = '\n'.join(htmls)
+        roll_context['roll_options_index'] = rolls_index.as_posix()
         for key in ('roll_min', 'roll_max', 'roll_nom'):
-            self.context[key] = f'{self.roll_info[key]:.2f}'
+            roll_context[key] = f'{self.roll_info[key]:.2f}'
+        self.context.update(roll_context)
+
+        # Make a separate preview page for the roll options
+        rolls_dir = self.obsid_dir / 'rolls'
+        run_aca_review(f'Obsid {self.obsid} roll options', acars=acas, report_dir=rolls_dir,
+                       report_level='none', roll_level='none', loud=False,
+                       context=roll_context)
 
     def plot(self, ax=None, **kwargs):
         """
