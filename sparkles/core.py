@@ -731,7 +731,8 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
                     break
             else:
                 # Every distance was too small, issue a warning.
-                msg = f'Guide indexes {idxs} clustered within {min_dist}" radius'
+                cat_idxs = [idx + 1 for idx in idxs]
+                msg = f'Guide indexes {cat_idxs} clustered within {min_dist}" radius'
                 self.add_message('critical', msg)
 
         # Check for all stars within 2500" of each other
