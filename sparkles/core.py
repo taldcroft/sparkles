@@ -523,15 +523,14 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         # Get stars from AGASC and set ``stars`` attribute
         self.set_stars(filter_near_fov=False)
 
-    def make_roll_options_report(self):
-        """Make a summary table and separate report page for roll options.
+    def get_roll_options_table(self):
+        """Return table of roll options
+
+        Note that self.roll_options includes the originally-planned roll case
+        as the first row.
 
         """
-        # Note self.roll_options includes the originally-planned roll case
-        # as the first row.
         opts = [opt.copy() for opt in self.roll_options]
-        rolls = [opt['acar'].att.roll for opt in self.roll_options]
-        acas = [opt['acar'] for opt in opts]
 
         for opt in opts:
             del opt['acar']
@@ -543,7 +542,17 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
         for col in opts_table.itercols():
             if col.dtype.kind == 'f':
                 col.info.format = '.2f'
-        self.roll_options_table = opts_table
+
+        return opts_table
+
+    def make_roll_options_report(self):
+        """Make a summary table and separate report page for roll options.
+
+        """
+        self.roll_options_table = self.get_roll_options_table()
+
+        # rolls = [opt['acar'].att.roll for opt in self.roll_options]
+        acas = [opt['acar'] for opt in self.roll_options]
 
         # Add in a column with summary of messages in roll options e.g.
         # critical: 2 warning: 1
