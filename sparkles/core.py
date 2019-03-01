@@ -535,6 +535,8 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         for opt in opts:
             del opt['acar']
+            for name in ('add_ids', 'drop_ids'):
+                opt[name] = ' '.join(str(id_) for id_ in opt[name]) if opt[name] else '--'
 
         opts_table = Table(opts, names=['roll', 'P2', 'n_stars', 'improvement',
                                         'roll_min', 'roll_max', 'add_ids', 'drop_ids'])
