@@ -172,12 +172,12 @@ def test_catch_exception_from_method():
         acar.run_aca_review(roll_level='BAD VALUE')
 
 
-def test_run_aca_review_function():
+def test_run_aca_review_function(tmpdir):
     aca = get_aca_catalog(**KWARGS_48464)
     acar = aca.get_review_table()
     acars = [acar]
 
-    exc = run_aca_review(load_name='test', acars=acars)
+    exc = run_aca_review(load_name=tmpdir.join('test'), acars=acars)
 
     assert exc is None
     assert acar.messages == [
