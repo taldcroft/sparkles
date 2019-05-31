@@ -41,7 +41,7 @@ def test_check_P2():
 
 
 def test_n_guide_check_not_enough_stars():
-    """Test the check that number of guide stars selected is typical"""
+    """Test the check that number of guide stars selected is as requested"""
 
     stars = StarsTable.empty()
     stars.add_fake_constellation(n_stars=4, mag=8.5)
