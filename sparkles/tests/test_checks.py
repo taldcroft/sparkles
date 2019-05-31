@@ -40,6 +40,20 @@ def test_check_P2():
     assert 'less than 3.0 for ER' in msg['text']
 
 
+def test_n_guide_check():
+    """Test the check that number of guide stars selected is typical"""
+
+    stars = StarsTable.empty()
+    stars.add_fake_constellation(n_stars=8, mag=8.5)
+    aca = get_aca_catalog(**mod_std_info(n_fid=3, n_guide=4, obsid=5000),
+                          stars=stars, dark=DARK40,
+                          raise_exc=True)
+    acar = ACAReviewTable(aca)
+    acar.check_guide_count()
+    assert acar.messages == [
+        {'text': 'Catalog has 4 guide stars but 5 is typical.', 's'}
+    ]
+
 def test_guide_count_er():
     """Test the check that an ER has enough fractional guide stars by guide_count"""
 
@@ -298,7 +312,23 @@ def test_check_fid_count():
     acar.check_catalog()
 
     assert acar.messages == [
-        {'text': 'Catalog has 2 fids but 3 are expected', 'category': 'critical'}]
+        {'text': 'Catalog has 2 fids but 3 were requested', 'category': 'critical'},
+        {'text': 'Catalog has 2 fids but 3 is typical', 'category': 'caution'}]
+
+
+def test_check_fid_count_fid():
+    """Test checking fid count"""
+    stars = StarsTable.empty()
+    # def add_fake_stars_from_fid(self, fid_id=1, offset_y=0, offset_z=0, mag=7.0,
+    #                            id=None, detector='ACIS-S', sim_offset=0):
+    stars.add_fake_constellation(n_stars=8)
+
+    aca = get_aca_catalog(stars=stars, **mod_std_info(detector='HRC-S', n_fid=2))
+    acar = ACAReviewTable(aca)
+    acar.check_catalog()
+
+    assert acar.messages == [
+        {'text': 'Catalog has 2 fids but 3 is typical', 'category': 'caution'}]
 
 
 def test_check_guide_geometry():
