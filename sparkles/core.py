@@ -656,6 +656,22 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         message_text = self.get_formatted_messages()
 
+        # Compare effective temperature (used in selection and evaluation process)
+        # with actual predicted temperature.  If different then this observation
+        # is close to the planning limit and has had a temperature penalty
+        # applied during selection.  Define message(s) to include in temperature line(s).
+        if np.isclose(self.t_ccd_guide, self.t_ccd_eff_guide):
+            t_ccd_eff_guide_msg = ''
+        else:
+            t_ccd_eff_guide_msg = ' ' + stylize(f'(Effective : {self.t_ccd_eff_guide:.1f})',
+                                                'caution')
+
+        if np.isclose(self.t_ccd_acq, self.t_ccd_eff_acq):
+            t_ccd_eff_acq_msg = ''
+        else:
+            t_ccd_eff_acq_msg = ' ' + stylize(f'(Effective : {self.t_ccd_eff_acq:.1f})',
+                                              'caution')
+
         text_pre = f"""\
 {self.detector} SIM-Z offset: {self.sim_offset}
 {att_string}
@@ -670,8 +686,8 @@ Date: {self.date}
 Probability of acquiring 2 or fewer stars (10^-x): {P2:.2f}
 Acquisition Stars Expected: {self.acq_count:.2f}
 Guide Stars count: {self.guide_count:.2f}
-Predicted Guide CCD temperature (max): {self.guides.t_ccd:.1f}
-Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
+Predicted Guide CCD temperature (max): {self.t_ccd_guide:.1f}{t_ccd_eff_guide_msg}
+Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}{t_ccd_eff_acq_msg}"""
 
         return text_pre
 
