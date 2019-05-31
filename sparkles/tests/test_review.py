@@ -35,7 +35,8 @@ def test_review_catalog(tmpdir):
          'idx': 2},
         {'text': 'P2: 2.84 less than 3.0 for ER', 'category': 'critical'},
         {'text': 'ER count of 9th (8.9 for -9.9C) mag guide stars 1.91 < 3.0',
-         'category': 'critical'}]
+         'category': 'critical'},
+        {'text': 'ER with 6 guides but 8 were requested', 'category': 'caution'}]
 
     assert acar.roll_options is None
 
@@ -185,7 +186,8 @@ def test_run_aca_review_function():
          'idx': 2},
         {'text': 'P2: 2.84 less than 3.0 for ER', 'category': 'critical'},
         {'text': 'ER count of 9th (8.9 for -9.9C) mag guide stars 1.91 < 3.0',
-         'category': 'critical'}]
+         'category': 'critical'},
+        {'text': 'ER with 6 guides but 8 were requested', 'category': 'caution'}]
 
 
 def test_roll_outside_range():

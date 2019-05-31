@@ -884,6 +884,23 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
                 'caution',
                 f'{obs_type} with more than {bright_cnt_lim} stars brighter than 6.1.')
 
+        n_guide = len(self.guides)
+
+        # Different number of guide stars than requested
+        if n_guide != self.n_guide:
+            self.add_message(
+                'caution',
+                f'{obs_type} with {n_guide} guides but {self.n_guide} were requested')
+
+        # Caution for any "unusual" guide star request
+        typical_n_guide = 5 if self.is_OR else 8
+        if self.n_guide != typical_n_guide:
+            msg = f'{obs_type} with {n_guide} guides requested but {typical_n_guide} is typical'
+            if self.is_OR and n_guide == 4:
+                msg += f' (likely MON star, check OR list)'
+            self.add_message('caution', msg)
+
+
     def check_pos_err_guide(self, star):
         """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
 
@@ -985,9 +1002,14 @@ Predicted Acq CCD temperature (init) : {self.acqs.t_ccd:.1f}"""
 
         :return: None
         """
-        if self.n_fid == 0:
-            return
+        obs_type = 'ER' if self.is_ER else 'OR'
 
         if len(self.fids) != self.n_fid:
-            msg = f'Catalog has {len(self.fids)} fids but {self.n_fid} are expected'
+            msg = f'{obs_type} has {len(self.fids)} fids but {self.n_fid} were requested'
             self.add_message('critical', msg)
+
+        # Check for "typical" number of fids for an OR / ER (3 or 0)
+        typical_n_fid = 3 if self.is_OR else 0
+        if self.n_fid != typical_n_fid:
+            msg = f'{obs_type} requested {self.n_fid} fids but {typical_n_fid} is typical'
+            self.add_message('caution', msg)
