@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 from proseco import get_aca_catalog
+from proseco.characteristics import aca_t_ccd_planning_limit
+
 from Quaternion import Quat
 import Ska.Sun
 from proseco.tests.test_common import mod_std_info
@@ -24,6 +26,27 @@ KWARGS_48464 = {'att': [-0.51759295, -0.30129397, 0.27093045, 0.75360213],
                 'focus_offset': 0,
                 't_ccd_acq': -9.943,
                 't_ccd_guide': -9.938}
+
+
+def test_t_ccd_effective_message():
+    """Test printing a message about effective guide and/or acq CCD temperature
+    when it is different from the predicted temperature."""
+    kwargs = KWARGS_48464.copy()
+    kwargs['t_ccd_guide'] = aca_t_ccd_planning_limit + 0.75
+    kwargs['t_ccd_acq'] = aca_t_ccd_planning_limit + 0.5
+    aca = get_aca_catalog(**kwargs)
+    acar = aca.get_review_table()
+    acar.run_aca_review()
+
+    # Pre-formatted text that gets put into HTML report
+    text = acar.get_text_pre()
+
+    eff_guide = kwargs['t_ccd_guide'] + 1 + (kwargs['t_ccd_guide'] - aca_t_ccd_planning_limit)
+    eff_acq = kwargs['t_ccd_acq'] + 1 + (kwargs['t_ccd_acq'] - aca_t_ccd_planning_limit)
+    assert (f'Predicted Guide CCD temperature (max): {kwargs["t_ccd_guide"]:.1f} '
+            f'<span class="caution">(Effective : {eff_guide:.1f})</span>') in text
+    assert (f'Predicted Acq CCD temperature (init) : {kwargs["t_ccd_acq"]:.1f} '
+            f'<span class="caution">(Effective : {eff_acq:.1f})</span>') in text
 
 
 def test_review_catalog(tmpdir):
