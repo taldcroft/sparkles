@@ -201,7 +201,7 @@ def test_run_aca_review_function(tmpdir):
     acar = aca.get_review_table()
     acars = [acar]
 
-    exc = run_aca_review(load_name=tmpdir.join('test'), acars=acars)
+    exc = run_aca_review(load_name='test_load', report_dir=tmpdir, acars=acars)
 
     assert exc is None
     assert acar.messages == [
@@ -211,6 +211,12 @@ def test_run_aca_review_function(tmpdir):
         {'text': 'ER count of 9th (8.9 for -9.9C) mag guide stars 1.91 < 3.0',
          'category': 'critical'},
         {'text': 'ER with 6 guides but 8 were requested', 'category': 'caution'}]
+
+    path = Path(str(tmpdir))
+    assert (path / 'index.html').exists()
+    obspath = path / 'obs48464'
+    assert (obspath / 'starcat48464.png').exists()
+    assert 'TEST_LOAD sparkles review' in (path / 'index.html').read_text()
 
 
 def test_roll_outside_range():

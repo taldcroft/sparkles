@@ -95,7 +95,7 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
     the list of obsids being processed.  This is handy for development or
     for examining just one obsid.
 
-    If ``outdir`` is not provided then it will be set to ``load_name``.
+    If ``report_dir`` is not provided then it will be set to ``load_name``.
 
     The ``report_level`` arg specifies the message category at which the full
     HTML report for guide and acquisition will be generated for obsids with at
