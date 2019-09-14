@@ -1,6 +1,6 @@
 __version__ = '4.3'
 
-from .core import run_aca_review, ACAReviewTable
+from .core import run_aca_review, ACAReviewTable  # noqa
 
 
 def test(*args, **kwargs):
