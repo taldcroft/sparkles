@@ -376,7 +376,7 @@ def test_check_guide_geometry():
     # Test for cluster of 3 500" rad stars in a 5 star case
     stars = StarsTable.empty()
     size = 1200
-    yangs = np.array([1, 0.90, 1.10,  0, -1])
+    yangs = np.array([1, 0.90, 1.10, 0, -1])
     zangs = np.array([1, 0.90, 1.10, -1, 0])
     for y, z in zip(yangs, zangs):
         stars.add_fake_star(yang=y * size, zang=z * size, mag=7.0)
