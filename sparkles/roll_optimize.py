@@ -12,8 +12,7 @@ import warnings
 from astropy.table import Table, vstack
 from chandra_aca.star_probs import acq_success_prob, guide_count
 from chandra_aca.transform import (radec_to_yagzag, yagzag_to_pixels,
-                                   calc_aca_from_targ, calc_targ_from_aca,
-                                   snr_mag_for_t_ccd)
+                                   calc_aca_from_targ, calc_targ_from_aca)
 from Quaternion import Quat
 
 from proseco.characteristics import CCD
@@ -222,8 +221,8 @@ class RollOptimizeMixin:
         for uniq_ids in uniq_ids_sets:
             # print(uniq_ids - ids0, ids0 - uniq_ids)
             # for sid in uniq_ids - ids0:
-                # star = self.stars.get_id(sid)
-                # print(f'{sid} {star["mag"]} {star["yang"]} {star["zang"]}')
+            #     star = self.stars.get_id(sid)
+            #     print(f'{sid} {star["mag"]} {star["yang"]} {star["zang"]}')
 
             # This says that ``uniq_ids`` is a subset of available ``ids`` in
             # FOV for roll_offset in the list comprehension below.  So everywhere

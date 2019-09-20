@@ -2,7 +2,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 import numpy as np
 import agasc
-import numpy as np
 
 from chandra_aca.transform import mag_to_count_rate
 from proseco import get_aca_catalog

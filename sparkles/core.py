@@ -14,7 +14,7 @@ from itertools import combinations, chain
 
 import matplotlib
 
-matplotlib.use('Agg')
+matplotlib.use('Agg')  # noqa
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 
@@ -174,7 +174,7 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
         if roll_level == 'all' or aca.messages >= roll_level:
             try:
                 aca.get_roll_options()  # sets roll_options, roll_info attributes
-            except Exception: # as err:
+            except Exception:  # as err:
                 err = traceback.format_exc()
                 aca.add_message('critical', text=f'Running get_roll_options() failed: \n{err}')
                 aca.roll_options = None
@@ -607,7 +607,7 @@ class ACAReviewTable(ACATable, RollOptimizeMixin):
 
         # Draw a circle at 735 pixels showing extent of CCD corners
         circle = Circle((0, 0), radius=735, facecolor='none',
-                                           edgecolor='g', alpha=0.5, lw=3)
+                        edgecolor='g', alpha=0.5, lw=3)
         ax.add_patch(circle)
 
         # Plot a circle around stars that were not already candidates
@@ -849,7 +849,7 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}{t_ccd_eff_acq_msg}""
     # }
 
     def add_message(self, category, text, **kwargs):
-        """Add message to internal messages list.
+        r"""Add message to internal messages list.
 
         :param category: message category ('info', 'caution', 'warning', 'critical')
         :param text: message text
@@ -916,7 +916,6 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}{t_ccd_eff_acq_msg}""
                 msg += f' (likely MON star, check OR list)'
             self.add_message('caution', msg)
 
-
     def check_pos_err_guide(self, star):
         """Warn on stars with larger POS_ERR (warning at 1" critical at 2")
 
@@ -972,7 +971,6 @@ Predicted Acq CCD temperature (init) : {self.t_ccd_acq:.1f}{t_ccd_eff_acq_msg}""
         agasc_id = star['id']
         idx = self.get_id(agasc_id)['idx']
         mag_err = star['mag_err']
-        mag_aca_err = star['MAG_ACA_ERR'] * 0.01
         for mult, category in ((2, 'critical'),
                                (3, 'caution')):
             if star['mag'] - (mult * mag_err) < 5.8:
