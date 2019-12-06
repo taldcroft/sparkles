@@ -68,15 +68,19 @@ def main(sys_args=None):
     parser.add_argument('--quiet',
                         action='store_true',
                         help='Run quietly')
+    parser.add_argument('--open-html',
+                        action='store_true',
+                        help="Open HTML in webbrowser")
     args = parser.parse_args(sys_args)
 
     run_aca_review(args.load_name, report_dir=args.report_dir, report_level=args.report_level,
-                   roll_level=args.roll_level, loud=(not args.quiet), obsids=args.obsid)
+                   roll_level=args.roll_level, loud=(not args.quiet), obsids=args.obsid,
+                   open_html=args.open_html)
 
 
 def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
                    report_level='none', roll_level='none', loud=False, obsids=None,
-                   context=None, raise_exc=True):
+                   open_html=False, context=None, raise_exc=True):
     """Do ACA load review based on proseco pickle file from ORviewer.
 
     The ``load_name`` specifies the pickle file from which the ``ACATable``
@@ -107,6 +111,7 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
     :param load_name: name of loads
     :param acars: list of ACAReviewTable objects (optional)
     :param make_html: make HTML output report
+    :param open_html: open the HTML output in default web brower
     :param report_dir: output directory
     :param report_level: report level threshold for generating acq and guide report
     :param roll_level: level threshold for suggesting alternate rolls
@@ -121,7 +126,8 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
     try:
         _run_aca_review(load_name=load_name, acars=acars, make_html=make_html,
                         report_dir=report_dir, report_level=report_level,
-                        roll_level=roll_level, loud=loud, obsids=obsids, context=context)
+                        roll_level=roll_level, loud=loud, obsids=obsids,
+                        open_html=open_html, context=context)
     except Exception:
         if raise_exc:
             raise
@@ -134,7 +140,7 @@ def run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=Non
 
 def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=None,
                     report_level='none', roll_level='none', loud=False, obsids=None,
-                    context=None):
+                    open_html=False, context=None):
 
     if acars is None:
         acars = get_acas_from_pickle(load_name, loud)
@@ -234,6 +240,12 @@ def _run_aca_review(load_name=None, *, acars=None, make_html=True, report_dir=No
             print(f'Writing output review file {out_filename}')
         with open(out_filename, 'w') as fh:
             fh.write(out_html)
+
+        if open_html:
+            import webbrowser
+            out_url = f'file://{out_filename.absolute()}'
+            print(f'Open URL in browser: {out_url}')
+            webbrowser.open(out_url)
 
 
 def stylize(text, category):
