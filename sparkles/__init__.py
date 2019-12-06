@@ -1,4 +1,4 @@
-__version__ = '4.3'
+__version__ = '4.4'
 
 from .core import run_aca_review, ACAReviewTable  # noqa
 
