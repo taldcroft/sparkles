@@ -7,7 +7,7 @@ try:
     if not __file__.startswith(_dist.location):
         # get_distribution() found a different package from this file, must be in source repo
         from setuptools_scm import get_version
-        __version__ = get_version(root='../..', relative_to=__file__)
+        __version__ = get_version(root='..', relative_to=__file__)
 
 except Exception as err:
     import warnings
