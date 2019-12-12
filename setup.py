@@ -1,5 +1,3 @@
-from sparkles import __version__
-
 from setuptools import setup
 
 try:
@@ -13,7 +11,8 @@ setup(name='sparkles',
       author='Tom Aldcroft',
       description='Sparkles ACA review package',
       author_email='taldcroft@cfa.harvard.edu',
-      version=__version__,
+      use_scm_version=True,
+      setup_requires=['setuptools_scm'],
       zip_safe=False,
       entry_points=entry_points,
       packages=['sparkles', 'sparkles.tests'],
